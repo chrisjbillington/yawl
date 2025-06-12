@@ -28,6 +28,7 @@ import Mtk from 'gi://Mtk';
 // - [ ] Super tab/Super shift-tab should tab through windows in taskbar order
 //   (probably: monitor order then taskbar order)
 // - [ ] Window list should not exceed available space in panel - buttons should shrink
+// - [ ] Favourites should be launchers on the left - with tooltips
 
 // Architecture plan:
 // * For each panel, we make a WindowList instance (which will be a class we'll have to
@@ -48,9 +49,9 @@ const HBOX_PADDING_RIGHT = 6;
 const ICON_LABEL_SPACING = 6;
 const LABEL_FONT_SIZE = 13;
 const MINIMIZED_ALPHA = 0.5;
-const FOCUSED_BACKGROUND_COLOR = 'rgba(128, 128, 128, 0.33)';
+const FOCUSED_BACKGROUND_COLOR = 'rgba(128, 128, 128, 0.45)';
 const URGENT_BACKGROUND_COLOR = 'rgba(255, 183, 77, 0.33)';
-
+const BASE_BUTTON_STYLE = 'border-width: 1px; border-radius: 2px; transition-duration: 0s;';
 
 class WindowButton {
     constructor(window, monitor_index) {
@@ -172,16 +173,14 @@ class WindowButton {
 
     _updateStyle() {
         if (this.button) {
-            let baseStyle = 'border-width: 1px; border-radius: 0px; transition-duration: 0s;';
-            
             if (this.window.demands_attention || this.window.urgent) {
                 console.log("Window is demanding attention!");
                 // Attention/urgent takes priority over focus
-                this.button.style = baseStyle + ` background-color: ${URGENT_BACKGROUND_COLOR};`;
+                this.button.style = BASE_BUTTON_STYLE + ` background-color: ${URGENT_BACKGROUND_COLOR};`;
             } else if (this._isFocused()) {
-                this.button.style = baseStyle + ` background-color: ${FOCUSED_BACKGROUND_COLOR};`;
+                this.button.style = BASE_BUTTON_STYLE + ` background-color: ${FOCUSED_BACKGROUND_COLOR};`;
             } else {
-                this.button.style = baseStyle;
+                this.button.style = BASE_BUTTON_STYLE;
             }
         }
     }
