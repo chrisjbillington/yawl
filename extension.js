@@ -29,6 +29,7 @@ const DASH_TO_PANEL_UUID = 'dash-to-panel@jderose9.github.com';
 // Settings, later to be put in settings app
 const ISOLATE_MONITORS = true;
 const ISOLATE_WORKSPACES = true;
+const WINDOW_BUTTON_WIDTH = 140;
 
 class WindowButton {
     constructor(window, monitor_index) {
@@ -38,21 +39,23 @@ class WindowButton {
         
         // Create label with first 10 chars of window title
         const title = window.get_title() || '';
-        const truncatedTitle = title.length > 10 ? title.substring(0, 10) : title;
+        // const truncatedTitle = title.length > 10 ? title.substring(0, 10) : title;
         
         this.button = new St.Label({
-            text: truncatedTitle,
+            text: title,
             style_class: 'panel-button',
+            width: 140,
             x_expand: false,
         });
         
         this.button.connect('destroy', this._onButtonDestroyed.bind(this));
 
-        console.log(`WindowButton created for: ${truncatedTitle}`);
+        console.log(`WindowButton created for: ${title}`);
         this.updateVisibility();
     }
     
     updateVisibility() {
+        console.log("WindowButton.updateVisibility() called");
         let workspace = global.workspace_manager.get_active_workspace();
         let visible = !this.window.skip_taskbar &&
                (!ISOLATE_WORKSPACES || this.window.located_on_workspace(workspace)) &&
@@ -93,8 +96,10 @@ class WindowList {
             'window-created',
             this._onWindowCreated.bind(this),
             'window-entered-monitor',
-            this._onWindowEnteredMonitor.bind(this),
-            this
+            this._onWindowChangedMonitors.bind(this),
+            'window-left-monitor',
+            this._onWindowChangedMonitors.bind(this),
+            this,
         );
         
         // Initialize with existing windows
@@ -137,8 +142,14 @@ class WindowList {
         this.container.add_child(windowButton.button);
     }
     
-    _onWindowEnteredMonitor(display, window) {
+    _onWindowChangedMonitors(display, monitor_index, window) {
         console.log("WindowList._onWindowEnteredMonitor() called");
+        const windowId = window.get_id();
+        const buttonIndex = this.windowButtons.findIndex(btn => btn.windowId === windowId);
+        if (buttonIndex !== -1) {
+            const windowButton = this.windowButtons[buttonIndex];
+            windowButton.updateVisibility();
+        }
     }
     
     _onWindowUnmanaged(window) {
