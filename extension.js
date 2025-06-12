@@ -1,6 +1,7 @@
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js'
 import {ExtensionState} from 'resource:///org/gnome/shell/misc/extensionUtils.js'
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 // Feature checklist:
@@ -37,7 +38,8 @@ const DASH_TO_PANEL_UUID = 'dash-to-panel@jderose9.github.com';
 // Settings, later to be put in settings app
 const ISOLATE_MONITORS = true;
 const ISOLATE_WORKSPACES = true;
-const WINDOW_BUTTON_WIDTH = 140;
+const WINDOW_BUTTON_WIDTH = 160;
+const ICON_SIZE = 24;
 
 class WindowButton {
     constructor(window, monitor_index) {
@@ -45,12 +47,18 @@ class WindowButton {
         this.windowId = window.get_id();
         this.monitor_index = monitor_index;
         
-        this.button = new St.Label({
-            // text: title,
+        this.button = new St.Button({
             style_class: 'panel-button',
             width: WINDOW_BUTTON_WIDTH,
-            x_expand: false,
         });
+
+        this.hbox = new St.BoxLayout();
+        this.icon = new St.Bin();
+        this.label = new St.Label();
+
+        this.hbox.add_child(this.icon);
+        this.hbox.add_child(this.label);
+        this.button.set_child(this.hbox);
 
         this.button.connect('destroy', this._onButtonDestroyed.bind(this));
 
@@ -73,6 +81,7 @@ class WindowButton {
         )
         
         this._updateTitle();
+        this._updateIcon();
         this.updateVisibility();
 
         console.log(`WindowButton created for: ${this.window.get_title()}`);
@@ -92,12 +101,23 @@ class WindowButton {
     _updateTitle() {
         console.log("WindowButton._updateTitle() called");
         if (this.button) {
-            this.button.text = this.window.get_title() || '';
+            this.label.text = this.window.get_title() || '';
         }
     }
 
     _updateIcon() {
         console.log("WindowButton._updateIcon() called");
+        if (this.button) {
+            let app = Shell.WindowTracker.get_default().get_window_app(this.window);
+            if (app) {
+                this.icon.child = app.create_icon_texture(ICON_SIZE);
+            } else {
+                this.icon.child = new St.Icon({
+                    icon_name: 'application-x-executable',
+                    icon_size: ICON_SIZE,
+                });
+            }
+        }
     }
 
     _updateMinimized() {
@@ -111,6 +131,9 @@ class WindowButton {
     _onButtonDestroyed() {
         console.log("WindowButton._onButtonDestroyed() called");
         this.button = null;
+        this.hbox = null;
+        this.icon = null;
+        this.label = null;
     }
 
     destroy() {
