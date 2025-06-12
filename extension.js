@@ -321,7 +321,7 @@ class WindowList {
     _onWindowUnmanaged(window) {
         console.log("WindowList._onWindowUnmanaged() called");
         // Find and remove the corresponding WindowButton
-        buttonIndex = this._getWindowButtonIndex(window);
+        let buttonIndex = this._getWindowButtonIndex(window);
         let button = this.windowButtons[buttonIndex];
         if (button) {
             this.container.remove_child(button.button);
