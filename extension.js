@@ -17,8 +17,8 @@ import Clutter from 'gi://Clutter';
 // - [x] Click raises or minimises
 // - [ ] Right click should get window menu
 // - [x] Middle click close
-// - [ ] Scroll raises next window, no periodic boundary
-// - [ ] Click and drag reorders
+// - [x] Scroll raises next window, no periodic boundary
+// - [x] Click and drag reorders
 // - [x] Window demanding attention gets highlighted
 // - [x] Lighten on hover over and slightly more on click
 // - [x] Dim significantly if minimised
@@ -31,7 +31,6 @@ import Clutter from 'gi://Clutter';
 //   (probably: monitor order then taskbar order)
 // - [ ] Window list should not exceed available space in panel - buttons should shrink
 // - [ ] Favourites should be launchers on the left - with tooltips
-// - [ ] Maybe: no on-pressed styling - focus/minimise immediately on click is enough 
 
 // Architecture plan:
 // * For each panel, we make a WindowList instance (which will be a class we'll have to
@@ -330,6 +329,7 @@ class WindowList {
         const button = new WindowButton(window, this.panel.monitor.index);
         button.button.connect('scroll-event', this._onScrollEvent.bind(this));
         button.button.connect('button-press-event', this._onButtonPress.bind(this));
+        button.button.connect('leave-event', this._onButtonLeave.bind(this));
         this.windowButtons.push(button);
         this.container.add_child(button.button);
     }
@@ -475,6 +475,17 @@ class WindowList {
         return false;
     }
 
+    _onButtonLeave(actor, event) {
+        // Clear pressed state when mouse leaves button during drag
+        if (this._dragInProgress) {
+            let button = this.windowButtons.find(btn => btn.button === actor);
+            if (button && button.button.fake_release) {
+                button.button.fake_release();
+            }
+        }
+        return false;
+    }
+
     _onPointerChanged(x, y) {
         if (!this._dragInProgress || !this._draggedButton) {
             return;
@@ -565,10 +576,20 @@ class WindowList {
         } else {
             this.container.add_child(this._draggedButton.button);
         }
+        
+        // Reapply hover styling since it gets reset
+        this._draggedButton.button.set_hover(true);
     }
 
     _endDrag() {
         console.log("WindowList._endDrag() called");
+        
+        // Clear hover state and sync to actual mouse position
+        if (this._draggedButton && this._draggedButton.button) {
+            this._draggedButton.button.set_hover(false);
+            this._draggedButton.button.sync_hover();
+        }
+
         this._dragInProgress = false;
         this._draggedButton = null;
         this._lastButtonState = false;
