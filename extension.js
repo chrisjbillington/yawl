@@ -26,24 +26,59 @@ import St from 'gi://St';
 
 const DASH_TO_PANEL_UUID = 'dash-to-panel@jderose9.github.com';
 
+class WindowButton {
+    constructor(window) {
+        this.window = window;
+        this.windowId = window.get_id();
+        
+        // Create label with first 10 chars of window title
+        const title = window.get_title() || '';
+        const truncatedTitle = title.length > 10 ? title.substring(0, 10) : title;
+        
+        this.button = new St.Label({
+            text: truncatedTitle,
+            style_class: 'panel-button',
+            x_expand: false,
+        });
+        
+        console.log(`WindowButton created for: ${truncatedTitle}`);
+    }
+    
+    destroy() {
+        if (this.button) {
+            this.button.destroy();
+            this.button = null;
+        }
+    }
+}
+
 class WindowList {
     constructor(panel) {
         this.panel = panel;
-        this.windows = [];
+        this.windowButtons = [];
         
-        // // Watch for window creation:
-        // global.display.connectObject(
-        //     'window-created',
-        //     this._onWindowCreated.bind(this),
-        //     'window-entered-monitor',
-        //     this._onWindowEnteredMonitor.bind(this),
-        //     this
-        // );
+        // Create horizontal container for window buttons
+        this.container = new St.BoxLayout({
+            style_class: 'window-list-container',
+            x_expand: false,
+        });
         
-        // // Initialize with existing windows
-        // global.get_window_actors().forEach(window => {
-        //     this._onWindowCreated(global.display, window.meta_window);
-        // });
+        // Insert container into panel's left box
+        panel._leftBox.insert_child_at_index(this.container, -1);
+        
+        // Watch for window creation:
+        global.display.connectObject(
+            'window-created',
+            this._onWindowCreated.bind(this),
+            'window-entered-monitor',
+            this._onWindowEnteredMonitor.bind(this),
+            this
+        );
+        
+        // Initialize with existing windows
+        global.get_window_actors().forEach(window => {
+            this._onWindowCreated(global.display, window.meta_window);
+        });
         
         console.log(`WindowList created for panel on monitor ${panel.monitor.index}`);
     }
@@ -74,8 +109,10 @@ class WindowList {
         // Monitor signals of interest:
         window.connectObject('unmanaged', this._onWindowUnmanaged.bind(this), this);
 
-        // Add to our window list
-        this.windows.push(window.get_id());
+        // Create WindowButton and add to container
+        const windowButton = new WindowButton(window);
+        this.windowButtons.push(windowButton);
+        this.container.add_child(windowButton.button);
     }
     
     _onWindowEnteredMonitor(display, window) {
@@ -84,21 +121,33 @@ class WindowList {
     
     _onWindowUnmanaged(window) {
         console.log("WindowList._onWindowUnmanaged() called");
-        // Remove from our window list
+        // Find and remove the corresponding WindowButton
         const windowId = window.get_id();
-        this.windows = this.windows.filter(id => id !== windowId);
+        const buttonIndex = this.windowButtons.findIndex(btn => btn.windowId === windowId);
+        if (buttonIndex !== -1) {
+            const windowButton = this.windowButtons[buttonIndex];
+            this.container.remove_child(windowButton.button);
+            windowButton.destroy();
+            this.windowButtons.splice(buttonIndex, 1);
+        }
     }
     
     destroy() {
         global.display.disconnectObject(this);
-        // Disconnect all window signals
-        this.windows.forEach(windowId => {
-            const window = global.display.get_window_by_id(windowId);
-            if (window) {
-                window.disconnectObject(this);
-            }
+        
+        // Clean up all window buttons
+        this.windowButtons.forEach(windowButton => {
+            windowButton.destroy();
         });
-        this.windows = [];
+        this.windowButtons = [];
+        
+        // Remove container from panel and destroy it
+        if (this.container) {
+            this.panel._leftBox.remove_child(this.container);
+            this.container.destroy();
+            this.container = null;
+        }
+        
         console.log(`WindowList destroyed for panel on monitor ${this.panel.monitor.index}`);
     }
 }
@@ -137,6 +186,7 @@ export default class PanelWindowListExtension extends Extension {
                     this._onPanelsCreated.bind(this),
                     this
                 );
+                this._onPanelsCreated()
             }
             if (extension.state === ExtensionState.INACTIVE) {
                 // Dash to panel disabled, clean up:
