@@ -320,6 +320,7 @@ class WindowList {
 
         // Create WindowButton and add to container
         const button = new WindowButton(window, this.panel.monitor.index);
+        button.button.connect('scroll-event', this._onScrollEvent.bind(this));
         this.windowButtons.push(button);
         this.container.add_child(button.button);
     }
@@ -330,8 +331,7 @@ class WindowList {
         if (button) {
             // Move to the end of the list:
             if (ISOLATE_MONITORS) {
-                this.container.remove_child(button.button);
-                this.container.add_child(button.button);
+                this._moveButtonToEnd(button);
             }
             button.updateVisibility();
         }
@@ -351,8 +351,7 @@ class WindowList {
         if (button) {
             // Move to the end of the list:
             if (ISOLATE_WORKSPACES) {
-                this.container.remove_child(button.button);
-                this.container.add_child(button.button);
+                this._moveButtonToEnd(button);
             }
             button.updateVisibility();
         }
@@ -376,6 +375,66 @@ class WindowList {
         }
     }
     
+    _moveButtonToEnd(button) {
+        // Move in container
+        this.container.remove_child(button.button);
+        this.container.add_child(button.button);
+        
+        // Move in array to keep in sync
+        let index = this.windowButtons.indexOf(button);
+        this.windowButtons.splice(index, 1);
+        this.windowButtons.push(button);
+    }
+
+    _onScrollEvent(actor, event) {
+        console.log("WindowList._onScrollEvent() called");
+        let direction = event.get_scroll_direction();
+        if (direction === 0) { // UP
+            this._focusPreviousWindow();
+        } else if (direction === 1) { // DOWN
+            this._focusNextWindow();
+        }
+        return true; // Handled
+    }
+
+    _focusNextWindow() {
+        let visibleButtons = this.windowButtons.filter(btn => btn.button.visible);
+        if (visibleButtons.length === 0) return;
+
+        let currentIndex = visibleButtons.findIndex(btn => btn._isFocused());
+        
+        // If no window focused, focus first window
+        if (currentIndex === -1) {
+            visibleButtons[0].window.activate(global.get_current_time());
+            return;
+        }
+        
+        // If already at last window, don't wrap - do nothing
+        if (currentIndex >= visibleButtons.length - 1) return;
+        
+        // Move to next window
+        visibleButtons[currentIndex + 1].window.activate(global.get_current_time());
+    }
+
+    _focusPreviousWindow() {
+        let visibleButtons = this.windowButtons.filter(btn => btn.button.visible);
+        if (visibleButtons.length === 0) return;
+
+        let currentIndex = visibleButtons.findIndex(btn => btn._isFocused());
+        
+        // If no window focused, focus last window
+        if (currentIndex === -1) {
+            visibleButtons[visibleButtons.length - 1].window.activate(global.get_current_time());
+            return;
+        }
+        
+        // If already at first window, don't wrap - do nothing
+        if (currentIndex <= 0) return;
+        
+        // Move to previous window
+        visibleButtons[currentIndex - 1].window.activate(global.get_current_time());
+    }
+
     _onContainerDestroyed() {
         console.log("WindowList._onContainerDestroyed() called");
         this.container = null;
