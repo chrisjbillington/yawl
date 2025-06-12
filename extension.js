@@ -51,6 +51,15 @@ class WindowButton {
         this.button.connect('destroy', this._onButtonDestroyed.bind(this));
 
         console.log(`WindowButton created for: ${title}`);
+
+        this.window.connectObject(
+            'notify::skip-taskbar',
+            this.updateVisibility.bind(this),
+            'workspace-changed',
+            this.updateVisibility.bind(this),
+            this,
+        )
+        
         this.updateVisibility();
     }
     
@@ -102,6 +111,12 @@ class WindowList {
             this,
         );
         
+        global.window_manager.connectObject(
+            'switch-workspace',
+            this._onSwitchWorkspace.bind(this),
+            this,
+        )
+
         // Initialize with existing windows
         global.get_window_actors().forEach(window => {
             this._onWindowCreated(global.display, window.meta_window);
@@ -152,6 +167,12 @@ class WindowList {
         }
     }
     
+    _onSwitchWorkspace() {
+        this.windowButtons.forEach(windowButton => {
+            windowButton.updateVisibility();
+        });
+    }
+
     _onWindowUnmanaged(window) {
         console.log("WindowList._onWindowUnmanaged() called");
         // Find and remove the corresponding WindowButton
