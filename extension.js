@@ -46,6 +46,7 @@ const HBOX_PADDING_LEFT = 6;
 const HBOX_PADDING_RIGHT = 6;
 const ICON_LABEL_SPACING = 6;
 const LABEL_FONT_SIZE = 13;
+const MINIMIZED_ALPHA = 0.5;
 
 class WindowButton {
     constructor(window, monitor_index) {
@@ -96,6 +97,7 @@ class WindowButton {
         this._updateTitle();
         this._updateIcon();
         this.updateVisibility();
+        this._updateMinimized();
 
         console.log(`WindowButton created for: ${this.window.get_title()}`);
     }
@@ -135,6 +137,11 @@ class WindowButton {
 
     _updateMinimized() {
         console.log("WindowButton._updateMinimized() called");
+        if (this.button) {
+            let alpha = this.window.minimized ? MINIMIZED_ALPHA : 1.0;
+            this.icon.opacity = alpha * 255;
+            this.label.opacity = alpha * 255;
+        }
     }
 
     _updateDemandsAttention() {
