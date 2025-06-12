@@ -1,9 +1,11 @@
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js'
 import {ExtensionState} from 'resource:///org/gnome/shell/misc/extensionUtils.js'
+import * as PointerWatcher from 'resource:///org/gnome/shell/ui/pointerWatcher.js';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 import Mtk from 'gi://Mtk';
+import Clutter from 'gi://Clutter';
 
 // Feature checklist:
 // - [x] Draw icon
@@ -29,6 +31,7 @@ import Mtk from 'gi://Mtk';
 //   (probably: monitor order then taskbar order)
 // - [ ] Window list should not exceed available space in panel - buttons should shrink
 // - [ ] Favourites should be launchers on the left - with tooltips
+// - [ ] Maybe: no on-pressed styling - focus/minimise immediately on click is enough 
 
 // Architecture plan:
 // * For each panel, we make a WindowList instance (which will be a class we'll have to
@@ -292,6 +295,12 @@ class WindowList {
         });
         
         console.log(`WindowList created for panel on monitor ${panel.monitor.index}`);
+        
+        // Initialize drag state
+        this._draggedButton = null;
+        this._dragInProgress = false;
+        this._pointerWatch = null;
+        this._lastButtonState = false;
     }
     
     _getWindowButtonIndex(window) {
@@ -320,6 +329,7 @@ class WindowList {
         // Create WindowButton and add to container
         const button = new WindowButton(window, this.panel.monitor.index);
         button.button.connect('scroll-event', this._onScrollEvent.bind(this));
+        button.button.connect('button-press-event', this._onButtonPress.bind(this));
         this.windowButtons.push(button);
         this.container.add_child(button.button);
     }
@@ -434,6 +444,142 @@ class WindowList {
         visibleButtons[currentIndex - 1].window.activate(global.get_current_time());
     }
 
+    _onButtonPress(actor, event) {
+        let button = event.get_button();
+        
+        if (button === 1) { // Left mouse button - start drag
+            console.log("WindowList._onButtonPress() - starting drag");
+            
+            // End any existing drag first to prevent overlapping
+            if (this._dragInProgress) {
+                this._endDrag();
+            }
+            
+            // Find which WindowButton this corresponds to
+            this._draggedButton = this.windowButtons.find(btn => btn.button === actor);
+            
+            if (this._draggedButton) {
+                this._dragInProgress = true;
+                this._lastButtonState = true;
+                
+                // Start global pointer watching - checks every 50ms
+                this._pointerWatch = PointerWatcher.getPointerWatcher().addWatch(50, this._onPointerChanged.bind(this));
+                
+                console.log(`Starting drag for window: ${this._draggedButton.window.get_title()}`);
+            }
+            
+            // Don't prevent - let WindowButton handle the activation
+            return false;
+        }
+        
+        return false;
+    }
+
+    _onPointerChanged(x, y) {
+        if (!this._dragInProgress || !this._draggedButton) {
+            return;
+        }
+
+        // Check if dragged button still exists and is visible
+        if (!this.windowButtons.includes(this._draggedButton) || !this._draggedButton.button.visible) {
+            console.log("Dragged button no longer exists or visible - ending drag");
+            this._endDrag();
+            return;
+        }
+
+        // Check global button state - returns [x, y, modifier_mask]
+        let [, , modifierMask] = global.get_pointer();
+        let buttonPressed = !!(modifierMask & Clutter.ModifierType.BUTTON1_MASK);
+        
+        // If button was pressed and is now released, end drag
+        if (this._lastButtonState && !buttonPressed) {
+            console.log("Global button release detected - ending drag");
+            this._endDrag();
+            return;
+        }
+        
+        this._lastButtonState = buttonPressed;
+        
+        // Only continue if button is still pressed
+        if (!buttonPressed) return;
+        
+        // Convert to container coordinates
+        let [containerX, containerY] = this.container.get_transformed_position();
+        let relativeX = x - containerX;
+        
+        // Find target button based on x position
+        let targetButton = this._getButtonAtPosition(relativeX);
+        
+        if (targetButton && targetButton !== this._draggedButton) {
+            console.log(`Dragging to target: ${targetButton.window.get_title()}`);
+            this._reorderToTarget(targetButton);
+        }
+    }
+
+    _getButtonAtPosition(x) {
+        // If position is to the right of all buttons, target the last visible button
+        if (x >= this.container.width) {
+            let visibleButtons = this.windowButtons.filter(btn => btn.button.visible);
+            return visibleButtons[visibleButtons.length - 1] || null;
+        }
+
+        // Find button that contains this x position
+        for (let button of this.windowButtons) {
+            if (!button.button.visible) continue;
+            
+            let [buttonX, buttonY] = button.button.get_position();
+            let buttonWidth = button.button.width;
+            
+            if (x >= buttonX && x <= buttonX + buttonWidth) {
+                return button;
+            }
+        }
+        
+        return null;
+    }
+
+    _reorderToTarget(targetButton) {
+        // Note the target index before removal (as specified)
+        let targetIndex = this.windowButtons.indexOf(targetButton);
+        let draggedIndex = this.windowButtons.indexOf(this._draggedButton);
+        
+        if (targetIndex === -1 || draggedIndex === -1) return;
+        
+        console.log(`Reordering: moving from index ${draggedIndex} to ${targetIndex}`);
+        
+        // Remove dragged button from current position
+        this.windowButtons.splice(draggedIndex, 1);
+        this.container.remove_child(this._draggedButton.button);
+        
+        // Insert at target position (index noted before removal)
+        this.windowButtons.splice(targetIndex, 0, this._draggedButton);
+        
+        // Find the St widget to insert before
+        let insertBeforeWidget = null;
+        if (targetIndex < this.container.get_n_children()) {
+            insertBeforeWidget = this.container.get_child_at_index(targetIndex);
+        }
+        
+        if (insertBeforeWidget) {
+            this.container.insert_child_below(this._draggedButton.button, insertBeforeWidget);
+        } else {
+            this.container.add_child(this._draggedButton.button);
+        }
+    }
+
+    _endDrag() {
+        console.log("WindowList._endDrag() called");
+        this._dragInProgress = false;
+        this._draggedButton = null;
+        this._lastButtonState = false;
+        
+        // Stop global pointer watching
+        if (this._pointerWatch) {
+            this._pointerWatch.remove();
+            this._pointerWatch = null;
+        }
+    }
+
     _onContainerDestroyed() {
         console.log("WindowList._onContainerDestroyed() called");
         this.container = null;
@@ -441,6 +587,10 @@ class WindowList {
 
     destroy() {
         global.display.disconnectObject(this);
+        global.window_manager.disconnectObject(this);
+        
+        // Clean up drag state
+        this._endDrag();
         
         // Clean up all window buttons
         this.windowButtons.forEach(windowButton => {
