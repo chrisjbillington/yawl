@@ -9,8 +9,8 @@ import St from 'gi://St';
 // - [x] Update title when it changes
 // - [x] Update icon when it changes
 // - [ ] Update alert status when it changes
-// - [ ] Update focus status when it changes
-// - [ ] Update minimised status when it changes
+// - [x] Update focus status when it changes
+// - [x] Update minimised status when it changes
 // - [ ] Click raises or minimises
 // - [ ] Right click should get window menu
 // - [ ] Middle click close
@@ -18,8 +18,8 @@ import St from 'gi://St';
 // - [ ] Click and drag reorders
 // - [ ] Window demanding attention gets highlighted
 // - [x] Lighten on hover over and slightly more on click
-// - [ ] Dim significantly if minimised
-// - [ ] lightened if active window
+// - [x] Dim significantly if minimised
+// - [x] lightened if active window
 // - [ ] Tooltip is window title
 // - [ ] Minimise/restore animation should respect the location of the window list entry
 // - [ ] Window order should survive suspend/restore and monitor hotplugging
@@ -47,6 +47,7 @@ const HBOX_PADDING_RIGHT = 6;
 const ICON_LABEL_SPACING = 6;
 const LABEL_FONT_SIZE = 13;
 const MINIMIZED_ALPHA = 0.5;
+const FOCUSED_BACKGROUND_COLOR = 'rgba(128, 128, 128, 0.33)';
 
 class WindowButton {
     constructor(window, monitor_index) {
@@ -76,6 +77,13 @@ class WindowButton {
 
         this.button.connect('destroy', this._onButtonDestroyed.bind(this));
 
+        // Monitor global focus changes
+        global.display.connectObject(
+            'notify::focus-window',
+            this._updateFocus.bind(this),
+            this,
+        );
+
         this.window.connectObject(
             'notify::skip-taskbar',
             this.updateVisibility.bind(this),
@@ -98,6 +106,7 @@ class WindowButton {
         this._updateIcon();
         this.updateVisibility();
         this._updateMinimized();
+        this._updateFocus();
 
         console.log(`WindowButton created for: ${this.window.get_title()}`);
     }
@@ -146,6 +155,30 @@ class WindowButton {
 
     _updateDemandsAttention() {
         console.log("WindowButton._updateDemandsAttention() called");
+    }
+
+    _updateFocus() {
+        if (this.button) {
+            let isFocused = this._isFocused();
+            if (isFocused) {
+                console.log("WindowButton._updateFocus() called");
+                this.button.style = `border-width: 1px; border-radius: 0px; transition-duration: 0s; background-color: ${FOCUSED_BACKGROUND_COLOR};`;
+            } else {
+                this.button.style = 'border-width: 1px; border-radius: 0px; transition-duration: 0s;';
+            }
+        }
+    }
+
+    _isFocused() {
+        let focusedWindow = global.display.focus_window;
+        // Check transient windows (dialogs, etc.)
+        while (focusedWindow) {
+            if (focusedWindow === this.window) {
+                return true;
+            }
+            focusedWindow = focusedWindow.get_transient_for();
+        }
+        return false;
     }
 
     _onButtonDestroyed() {
