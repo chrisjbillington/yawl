@@ -1,5 +1,6 @@
-import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js'
+import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js'
+import {ExtensionState} from 'resource:///org/gnome/shell/misc/extensionUtils.js'
 import St from 'gi://St';
 
 // Feature checklist:
@@ -25,75 +26,29 @@ import St from 'gi://St';
 
 const DASH_TO_PANEL_UUID = 'dash-to-panel@jderose9.github.com';
 
-export default class PanelWindowListExtension extends Extension {
-    constructor(metadata) {
-        super(metadata);
+class WindowList {
+    constructor(panel) {
+        this.panel = panel;
+        this.windows = [];
+        
+        // // Watch for window creation:
+        // global.display.connectObject(
+        //     'window-created',
+        //     this._onWindowCreated.bind(this),
+        //     'window-entered-monitor',
+        //     this._onWindowEnteredMonitor.bind(this),
+        //     this
+        // );
+        
+        // // Initialize with existing windows
+        // global.get_window_actors().forEach(window => {
+        //     this._onWindowCreated(global.display, window.meta_window);
+        // });
+        
+        console.log(`WindowList created for panel on monitor ${panel.monitor.index}`);
     }
-
-    enable() {
-        // Watch for extensions being enabled and disabled:
-        Main.extensionManager.connectObject(
-            'extension-state-changed',
-            this._onExtensionStateChanged.bind(this),
-            this,
-        );
-        // Watch for monitors being added, removed, or  modified:
-        Main.layoutManager.connectObject(
-            'monitors-changed',
-            this._onMonitorsChanged.bind(this),
-            this,
-        );
-        // Watch for window creation:
-        global.display.connectObject(
-            'window-created',
-            this._onWindowCreated.bind(this),
-            'window-entered-monitor',
-            this._onWindowEnteredMonitor.bind(this),
-            this
-        );
-
-        // Keyed by monitor index:
-        this.window_lists = {};
-        global.get_window_actors().forEach(window => {
-            this._onWindowCreated(global.display, window.meta_window);
-        })
-        console.log("PWL enabled");
-    }
-
-    _onExtensionStateChanged(manager, extension) {
-        if (extension.uuid === DASH_TO_PANEL_UUID && extension.state === ExtensionState.ENABLED) {
-            // Dash to panel is enabled. Start watching for panel creation:
-            global.dashToPanel.connectObject(
-                'panels-created',
-                this._onPanelsCreated.bind(this),
-                this
-            );
-        }
-    }
-
-    _onPanelsCreated() {
-        console.log("Panels created");
-        panels.global.dashToPanel.panels(panel => {
-            console.log(`Got panel on monitor ${panel.monitor.index}`);
-        });
-        // TODO insert our window lists into panels
-    }
-
-    _onMonitorsChanged() {
-        console.log("Monitors changed");
-    }
-
-    // _onWorkspaceAdded() {
-    //     console.log("Workspace added");
-    // }
-
-    // _onWorkspaceRemoved() {
-    //     console.log("Workspace removed");
-    // }
-
+    
     _onWindowCreated(display, window) {
-        // Determine monitor by getting centre of window and seeing what monitor's
-        // bounds it is within or closest to
         let title = window.get_title();
         let wm_class = window.get_wm_class(); 
         let type = window.window_type;
@@ -105,7 +60,7 @@ export default class PanelWindowListExtension extends Extension {
         let minimized = window.minimized;
         let hidden = window.is_hidden();
 
-        console.log("_onWindowCreated() called:");
+        console.log("WindowList._onWindowCreated() called:");
         console.log(`            title: ${title}`);
         console.log(`         wm_class: ${wm_class}`);
         console.log(`             type: ${type}`);
@@ -117,62 +72,141 @@ export default class PanelWindowListExtension extends Extension {
         console.log(`           hidden: ${hidden}`);
 
         // Monitor signals of interest:
-        window.connectObject('unmanaged', this._onWindowUnmanaged.bind(this), this)
+        window.connectObject('unmanaged', this._onWindowUnmanaged.bind(this), this);
 
-        if (!this.window_lists[monitor]) {
-            this.window_lists[monitor] = [];
-        }
-        // Insert into global list
-        // Insert panel item into all panels
-        this.window_lists[monitor].push(window.get_id());
+        // Add to our window list
+        this.windows.push(window.get_id());
     }
-
+    
     _onWindowEnteredMonitor(display, window) {
-        console.log("_onWindowEnteredMonitor() called");
+        console.log("WindowList._onWindowEnteredMonitor() called");
     }
-
+    
     _onWindowUnmanaged(window) {
-        console.log("_onWindowUnmanaged() called");
+        console.log("WindowList._onWindowUnmanaged() called");
+        // Remove from our window list
+        const windowId = window.get_id();
+        this.windows = this.windows.filter(id => id !== windowId);
     }
-
-    _addToPanel(panel) {
-        let button = new St.Label({
-            text: 'Window List',
-            style_class: 'panel-button',
-            width: 140,
-            x_expand: false,
-        });
-        panel._leftBox.insert_child_at_index(button, -1);
-        this._buttons.push(button)
-    }
-
-    _removeFromPanel(panel) {
-        this._buttons = this._buttons.filter(item => {
-            if (item.panel === panel) {
-                item.label.destroy();
-                return false;
+    
+    destroy() {
+        global.display.disconnectObject(this);
+        // Disconnect all window signals
+        this.windows.forEach(windowId => {
+            const window = global.display.get_window_by_id(windowId);
+            if (window) {
+                window.disconnectObject(this);
             }
-            return true;
         });
+        this.windows = [];
+        console.log(`WindowList destroyed for panel on monitor ${this.panel.monitor.index}`);
+    }
+}
+
+export default class PanelWindowListExtension extends Extension {
+    constructor(metadata) {
+        super(metadata);
+    }
+
+    enable() {
+        this.windowLists = [];
+        
+        // Watch for extensions being enabled and disabled:
+        Main.extensionManager.connectObject(
+            'extension-state-changed',
+            this._onExtensionStateChanged.bind(this),
+            this,
+        );
+        // // Watch for monitors being added, removed, or modified:
+        // Main.layoutManager.connectObject(
+        //     'monitors-changed',
+        //     this._onMonitorsChanged.bind(this),
+        //     this,
+        // );
+        
+        console.log("PWL enabled");
+    }
+
+    _onExtensionStateChanged(manager, extension) {
+        if (extension.uuid === DASH_TO_PANEL_UUID) {
+            if (extension.state === ExtensionState.ACTIVE) {
+                // Dash to panel is enabled. Start watching for panel creation:
+                console.log("Dash to panel was activated");
+                global.dashToPanel.connectObject(
+                    'panels-created',
+                    this._onPanelsCreated.bind(this),
+                    this
+                );
+            }
+            if (extension.state === ExtensionState.INACTIVE) {
+                // Dash to panel disabled, clean up:
+                console.log("Dash to panel was deactivated");
+                this._destroyWindowLists();
+            }
+        }
+    }
+
+    _onPanelsCreated() {
+        console.log("Panels created");
+        // Clean up existing window lists:
+        this._destroyWindowLists();
+        // Create new window lists for each panel:
+        global.dashToPanel.panels.forEach(panel => {
+            console.log(`Got panel on monitor ${panel.monitor.index}`);
+            const windowList = new WindowList(panel);
+            this.windowLists.push(windowList);
+        });
+    }
+
+    // _onMonitorsChanged() {
+    //     console.log("Monitors changed");
+    // }
+
+    // _onWorkspaceAdded() {
+    //     console.log("Workspace added");
+    // }
+
+    // _onWorkspaceRemoved() {
+    //     console.log("Workspace removed");
+    // }
+
+
+    // _addToPanel(panel) {
+    //     let button = new St.Label({
+    //         text: 'Window List',
+    //         style_class: 'panel-button',
+    //         width: 140,
+    //         x_expand: false,
+    //     });
+    //     panel._leftBox.insert_child_at_index(button, -1);
+    //     this._buttons.push(button)
+    // }
+
+    // _removeFromPanel(panel) {
+    //     this._buttons = this._buttons.filter(item => {
+    //         if (item.panel === panel) {
+    //             item.label.destroy();
+    //             return false;
+    //         }
+    //         return true;
+    //     });
+    // }
+
+    _destroyWindowLists() {
+        // Clean up all WindowList instances
+        console.log("Destroying windowLists");
+        this.windowLists.forEach(windowList => {
+            windowList.destroy();
+        });
+        this.windowLists = [];
     }
 
     disable() {
-        global.dashToPanel.disconnectObject(this);
-        Main.layoutManager.disconnectObject(this);
+        this._destroyWindowLists();
+        global.dashToPanel?.disconnectObject(this);
+        // Main.layoutManager.disconnectObject(this);
         Main.extensionManager.disconnectObject(this);
-
-        // Clean up Dash to Panel panels
-        // this._labels.forEach(label => {
-        //     label.get_parent()?.remove_child(label);
-        //     label.destroy();
-        // });
-        // this._labels = [];
-
-        // if (this._label) {
-        //     Main.panel._leftBox.remove_child(this._label);
-        //     this._label.destroy();
-        //     this._label = null;
-        // }
+        
         console.log("PWL extension disabled");
     }
 }
