@@ -237,9 +237,13 @@ class WindowList {
         console.log(`WindowList created for panel on monitor ${panel.monitor.index}`);
     }
     
-    _getWindowButton(window) {
+    _getWindowButtonIndex(window) {
         const windowId = window.get_id();
-        const buttonIndex = this.windowButtons.findIndex(btn => btn.windowId === windowId);
+        return this.windowButtons.findIndex(btn => btn.windowId === windowId);
+    }
+
+    _getWindowButton(window) {
+        const buttonIndex = this._getWindowButtonIndex(window)
         if (buttonIndex !== -1) {
             return this.windowButtons[buttonIndex];
         }
@@ -305,7 +309,8 @@ class WindowList {
     _onWindowUnmanaged(window) {
         console.log("WindowList._onWindowUnmanaged() called");
         // Find and remove the corresponding WindowButton
-        let button = this._getWindowButton(window);
+        buttonIndex = this._getWindowButtonIndex(window);
+        let button = this.windowButtons[buttonIndex];
         if (button) {
             this.container.remove_child(button.button);
             button.destroy();
