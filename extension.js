@@ -9,7 +9,7 @@ import Mtk from 'gi://Mtk';
 // - [x] Draw icon
 // - [x] Update title when it changes
 // - [x] Update icon when it changes
-// - [ ] Update alert status when it changes
+// - [x] Update alert status when it changes
 // - [x] Update focus status when it changes
 // - [x] Update minimised status when it changes
 // - [x] Click raises or minimises
@@ -17,7 +17,7 @@ import Mtk from 'gi://Mtk';
 // - [x] Middle click close
 // - [ ] Scroll raises next window, no periodic boundary
 // - [ ] Click and drag reorders
-// - [ ] Window demanding attention gets highlighted
+// - [x] Window demanding attention gets highlighted
 // - [x] Lighten on hover over and slightly more on click
 // - [x] Dim significantly if minimised
 // - [x] lightened if active window
@@ -49,6 +49,7 @@ const ICON_LABEL_SPACING = 6;
 const LABEL_FONT_SIZE = 13;
 const MINIMIZED_ALPHA = 0.5;
 const FOCUSED_BACKGROUND_COLOR = 'rgba(128, 128, 128, 0.33)';
+const URGENT_BACKGROUND_COLOR = 'rgba(255, 183, 77, 0.33)';
 
 
 class WindowButton {
@@ -100,9 +101,9 @@ class WindowButton {
             'notify::minimized',
             this._updateMinimized.bind(this),
             'notify::demands-attention',
-            this._updateDemandsAttention.bind(this),
+            this._updateUrgent.bind(this),
             'notify::urgent',
-            this._updateDemandsAttention.bind(this),
+            this._updateUrgent.bind(this),
             this,
         )
         
@@ -111,6 +112,7 @@ class WindowButton {
         this.updateVisibility();
         this._updateMinimized();
         this._updateFocus();
+        this._updateUrgent();
 
         console.log(`WindowButton created for: ${this.window.get_title()}`);
     }
@@ -158,18 +160,28 @@ class WindowButton {
         }
     }
 
-    _updateDemandsAttention() {
-        console.log("WindowButton._updateDemandsAttention() called");
+    _updateUrgent() {
+        console.log("WindowButton._updateUrgent() called");
+        this._updateStyle();
     }
 
     _updateFocus() {
+        console.log("WindowButton._updateFocus() called");
+        this._updateStyle();
+    }
+
+    _updateStyle() {
         if (this.button) {
-            let isFocused = this._isFocused();
-            if (isFocused) {
-                console.log("WindowButton._updateFocus() called");
-                this.button.style = `border-width: 1px; border-radius: 0px; transition-duration: 0s; background-color: ${FOCUSED_BACKGROUND_COLOR};`;
+            let baseStyle = 'border-width: 1px; border-radius: 0px; transition-duration: 0s;';
+            
+            if (this.window.demands_attention || this.window.urgent) {
+                console.log("Window is demanding attention!");
+                // Attention/urgent takes priority over focus
+                this.button.style = baseStyle + ` background-color: ${URGENT_BACKGROUND_COLOR};`;
+            } else if (this._isFocused()) {
+                this.button.style = baseStyle + ` background-color: ${FOCUSED_BACKGROUND_COLOR};`;
             } else {
-                this.button.style = 'border-width: 1px; border-radius: 0px; transition-duration: 0s;';
+                this.button.style = baseStyle;
             }
         }
     }
