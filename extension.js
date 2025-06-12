@@ -78,6 +78,7 @@ class WindowButton {
 
         this.button.connect('destroy', this._onButtonDestroyed.bind(this));
         this.button.connect('clicked', this._onButtonClicked.bind(this));
+        this.button.connect('button-press-event', this._onButtonPress.bind(this));
 
         // Monitor global focus changes
         global.display.connectObject(
@@ -196,6 +197,16 @@ class WindowButton {
         [rect.width, rect.height] = this.button.get_transformed_size();
         
         this.window.set_icon_geometry(rect);
+    }
+
+    _onButtonPress(actor, event) {
+        let button = event.get_button();
+        if (button === 2) { // Middle mouse button
+            console.log("WindowButton middle click - closing window");
+            this.window.delete(global.get_current_time());
+            return true; // Prevent further handling
+        }
+        return false; // Allow other handlers to process
     }
 
     _onButtonClicked() {
