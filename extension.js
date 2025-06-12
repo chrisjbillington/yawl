@@ -76,6 +76,7 @@ class WindowButton {
         this.button.set_child(this.hbox);
 
         this.button.connect('destroy', this._onButtonDestroyed.bind(this));
+        this.button.connect('clicked', this._onButtonClicked.bind(this));
 
         // Monitor global focus changes
         global.display.connectObject(
@@ -179,6 +180,17 @@ class WindowButton {
             focusedWindow = focusedWindow.get_transient_for();
         }
         return false;
+    }
+
+    _onButtonClicked() {
+        console.log("WindowButton._onButtonClicked() called");
+        if (this._isFocused()) {
+            // Window is already focused, minimize it
+            this.window.minimize();
+        } else {
+            // Window is not focused, activate it
+            this.window.activate(global.get_current_time());
+        }
     }
 
     _onButtonDestroyed() {
