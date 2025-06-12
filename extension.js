@@ -4,18 +4,26 @@ import {ExtensionState} from 'resource:///org/gnome/shell/misc/extensionUtils.js
 import St from 'gi://St';
 
 // Feature checklist:
-// Click raises or minimises
-// Right click should get window menu
-// Middle click close
-// Scroll raises next window, no periodic boundary
-// Click and drag reorders
-// Window demanding attention gets highlighted
-// Lighten on hover over and slightly more on click
-// Dim significantly if minimised
-// lightened if active window
-// Tooltip is window title
-// Minimise/restore animation should respect the location of the window list entry
-// Window order should survive suspend/restore and monitor hotplugging
+// - [ ] Draw icon
+// - [ ] Update title when it changes
+// - [ ] Update icon when it changes
+// - [ ] Update alert status when it changes
+// - [ ] Update focus status when it changes
+// - [ ] Update minimised status when it changes
+// - [ ] Click raises or minimises
+// - [ ] Right click should get window menu
+// - [ ] Middle click close
+// - [ ] Scroll raises next window, no periodic boundary
+// - [ ] Click and drag reorders
+// - [ ] Window demanding attention gets highlighted
+// - [ ] Lighten on hover over and slightly more on click
+// - [ ] Dim significantly if minimised
+// - [ ] lightened if active window
+// - [ ] Tooltip is window title
+// - [ ] Minimise/restore animation should respect the location of the window list entry
+// - [ ] Window order should survive suspend/restore and monitor hotplugging
+// - [ ] Super tab/Super shift-tab should tab through windows in taskbar order
+//   (probably: monitor order then taskbar order)
 
 // Architecture plan:
 // * For each panel, we make a WindowList instance (which will be a class we'll have to
@@ -37,39 +45,67 @@ class WindowButton {
         this.windowId = window.get_id();
         this.monitor_index = monitor_index;
         
-        // Create label with first 10 chars of window title
-        const title = window.get_title() || '';
-        // const truncatedTitle = title.length > 10 ? title.substring(0, 10) : title;
-        
         this.button = new St.Label({
-            text: title,
+            // text: title,
             style_class: 'panel-button',
-            width: 140,
+            width: WINDOW_BUTTON_WIDTH,
             x_expand: false,
         });
-        
-        this.button.connect('destroy', this._onButtonDestroyed.bind(this));
 
-        console.log(`WindowButton created for: ${title}`);
+        this.button.connect('destroy', this._onButtonDestroyed.bind(this));
 
         this.window.connectObject(
             'notify::skip-taskbar',
             this.updateVisibility.bind(this),
-            'workspace-changed',
-            this.updateVisibility.bind(this),
+            'notify::title',
+            this._updateTitle.bind(this),
+            'notify::wm-class',
+            this._updateIcon.bind(this),
+            'notify::gtk-application-id',
+            this._updateIcon.bind(this),
+            'notify::minimized',
+            this._updateMinimized.bind(this),
+            'notify::demands-attention',
+            this._updateDemandsAttention.bind(this),
+            'notify::urgent',
+            this._updateDemandsAttention.bind(this),
             this,
         )
         
+        this._updateTitle();
         this.updateVisibility();
+
+        console.log(`WindowButton created for: ${this.window.get_title()}`);
     }
     
     updateVisibility() {
         console.log("WindowButton.updateVisibility() called");
-        let workspace = global.workspace_manager.get_active_workspace();
-        let visible = !this.window.skip_taskbar &&
-               (!ISOLATE_WORKSPACES || this.window.located_on_workspace(workspace)) &&
-               (!ISOLATE_MONITORS || this.window.get_monitor() === this.monitor_index);
-        this.button.visible = visible;
+        if (this.button) {
+            let workspace = global.workspace_manager.get_active_workspace();
+            let visible = !this.window.skip_taskbar &&
+                   (!ISOLATE_WORKSPACES || this.window.located_on_workspace(workspace)) &&
+                   (!ISOLATE_MONITORS || this.window.get_monitor() === this.monitor_index);
+            this.button.visible = visible;
+        }
+    }
+
+    _updateTitle() {
+        console.log("WindowButton._updateTitle() called");
+        if (this.button) {
+            this.button.text = this.window.get_title() || '';
+        }
+    }
+
+    _updateIcon() {
+        console.log("WindowButton._updateIcon() called");
+    }
+
+    _updateMinimized() {
+        console.log("WindowButton._updateMinimized() called");
+    }
+
+    _updateDemandsAttention() {
+        console.log("WindowButton._updateDemandsAttention() called");
     }
 
     _onButtonDestroyed() {
@@ -105,9 +141,9 @@ class WindowList {
             'window-created',
             this._onWindowCreated.bind(this),
             'window-entered-monitor',
-            this._onWindowChangedMonitors.bind(this),
+            this._onWindowEnteredMonitor.bind(this),
             'window-left-monitor',
-            this._onWindowChangedMonitors.bind(this),
+            this._onWindowLeftMonitor.bind(this),
             this,
         );
         
@@ -125,63 +161,78 @@ class WindowList {
         console.log(`WindowList created for panel on monitor ${panel.monitor.index}`);
     }
     
-    _onWindowCreated(display, window) {
-        let title = window.get_title();
-        let wm_class = window.get_wm_class(); 
-        let type = window.window_type;
-        let workspace = window.get_workspace();
-        let workspace_index = workspace.index();
-        let monitor = window.get_monitor();
-        let sticky = window.is_on_all_workspaces();
-        let skip_taskbar = window.skip_taskbar;
-        let minimized = window.minimized;
-        let hidden = window.is_hidden();
-
-        console.log("WindowList._onWindowCreated() called:");
-        console.log(`            title: ${title}`);
-        console.log(`         wm_class: ${wm_class}`);
-        console.log(`             type: ${type}`);
-        console.log(`  workspace_index: ${workspace_index}`);
-        console.log(`          monitor: ${monitor}`);
-        console.log(`           sticky: ${sticky}`);
-        console.log(`     skip_taskbar: ${skip_taskbar}`);
-        console.log(`        minimized: ${minimized}`);
-        console.log(`           hidden: ${hidden}`);
-
-        // Monitor signals of interest:
-        window.connectObject('unmanaged', this._onWindowUnmanaged.bind(this), this);
-
-        // Create WindowButton and add to container
-        const windowButton = new WindowButton(window, this.panel.monitor.index);
-        this.windowButtons.push(windowButton);
-        this.container.add_child(windowButton.button);
-    }
-    
-    _onWindowChangedMonitors(display, monitor_index, window) {
-        console.log("WindowList._onWindowEnteredMonitor() called");
+    _getWindowButton(window) {
         const windowId = window.get_id();
         const buttonIndex = this.windowButtons.findIndex(btn => btn.windowId === windowId);
         if (buttonIndex !== -1) {
-            const windowButton = this.windowButtons[buttonIndex];
-            windowButton.updateVisibility();
+            return this.windowButtons[buttonIndex];
+        }
+        return null;
+    }
+
+    _onWindowCreated(display, window) {
+        // Monitor signals of interest:
+        window.connectObject(
+            'unmanaged',
+            this._onWindowUnmanaged.bind(this),
+            'workspace-changed',
+            this._onWindowWorkspaceChanged.bind(this),
+            this,
+        )
+
+        // Create WindowButton and add to container
+        const button = new WindowButton(window, this.panel.monitor.index);
+        this.windowButtons.push(button);
+        this.container.add_child(button.button);
+    }
+    
+    _onWindowEnteredMonitor(display, monitor_index, window) {
+        console.log("WindowList._onWindowEnteredMonitor() called");
+        let button = this._getWindowButton(window);
+        if (button) {
+            // Move to the end of the list:
+            if (ISOLATE_MONITORS) {
+                this.container.remove_child(button.button);
+                this.container.add_child(button.button);
+            }
+            button.updateVisibility();
+        }
+    }
+
+    _onWindowLeftMonitor(display, monitor_index, window) {
+        console.log("WindowList._onWindowLeftMonitor() called");
+        let button = this._getWindowButton(window);
+        if (button) {
+            button.updateVisibility();
         }
     }
     
+    _onWindowWorkspaceChanged(window) {
+        console.log("WindowList._onWindowWorkspaceChanged() called");
+        let button = this._getWindowButton(window);
+        if (button) {
+            // Move to the end of the list:
+            if (ISOLATE_WORKSPACES) {
+                this.container.remove_child(button.button);
+                this.container.add_child(button.button);
+            }
+            button.updateVisibility();
+        }
+    }
+
     _onSwitchWorkspace() {
-        this.windowButtons.forEach(windowButton => {
-            windowButton.updateVisibility();
+        this.windowButtons.forEach(button => {
+            button.updateVisibility();
         });
     }
 
     _onWindowUnmanaged(window) {
         console.log("WindowList._onWindowUnmanaged() called");
         // Find and remove the corresponding WindowButton
-        const windowId = window.get_id();
-        const buttonIndex = this.windowButtons.findIndex(btn => btn.windowId === windowId);
-        if (buttonIndex !== -1) {
-            const windowButton = this.windowButtons[buttonIndex];
-            this.container.remove_child(windowButton.button);
-            windowButton.destroy();
+        let button = this._getWindowButton(window);
+        if (button) {
+            this.container.remove_child(button.button);
+            button.destroy();
             this.windowButtons.splice(buttonIndex, 1);
         }
     }
