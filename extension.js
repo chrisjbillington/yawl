@@ -12,9 +12,9 @@ import Mtk from 'gi://Mtk';
 // - [ ] Update alert status when it changes
 // - [x] Update focus status when it changes
 // - [x] Update minimised status when it changes
-// - [ ] Click raises or minimises
+// - [x] Click raises or minimises
 // - [ ] Right click should get window menu
-// - [ ] Middle click close
+// - [x] Middle click close
 // - [ ] Scroll raises next window, no periodic boundary
 // - [ ] Click and drag reorders
 // - [ ] Window demanding attention gets highlighted
@@ -22,7 +22,7 @@ import Mtk from 'gi://Mtk';
 // - [x] Dim significantly if minimised
 // - [x] lightened if active window
 // - [ ] Tooltip is window title
-// - [ ] Minimise/restore animation should respect the location of the window list entry
+// - [x] Minimise/restore animation should respect the location of the window list entry
 // - [ ] Window order should survive suspend/restore and monitor hotplugging
 // - [x] Windows moved to new workspaces/monitors should go to the end of the list
 // - [ ] Super tab/Super shift-tab should tab through windows in taskbar order
@@ -49,6 +49,7 @@ const ICON_LABEL_SPACING = 6;
 const LABEL_FONT_SIZE = 13;
 const MINIMIZED_ALPHA = 0.5;
 const FOCUSED_BACKGROUND_COLOR = 'rgba(128, 128, 128, 0.33)';
+
 
 class WindowButton {
     constructor(window, monitor_index) {
@@ -240,6 +241,7 @@ class WindowButton {
     }
 }
 
+
 class WindowList {
     constructor(panel) {
         this.panel = panel;
@@ -385,6 +387,7 @@ class WindowList {
     }
 }
 
+
 export default class PanelWindowListExtension extends Extension {
     constructor(metadata) {
         super(metadata);
@@ -399,12 +402,6 @@ export default class PanelWindowListExtension extends Extension {
             this._onExtensionStateChanged.bind(this),
             this,
         );
-        // // Watch for monitors being added, removed, or modified:
-        // Main.layoutManager.connectObject(
-        //     'monitors-changed',
-        //     this._onMonitorsChanged.bind(this),
-        //     this,
-        // );
         
         // Check if dash to panel is active already:
         if (global.dashToPanel) {
@@ -450,40 +447,6 @@ export default class PanelWindowListExtension extends Extension {
         });
     }
 
-    // _onMonitorsChanged() {
-    //     console.log("Monitors changed");
-    // }
-
-    // _onWorkspaceAdded() {
-    //     console.log("Workspace added");
-    // }
-
-    // _onWorkspaceRemoved() {
-    //     console.log("Workspace removed");
-    // }
-
-
-    // _addToPanel(panel) {
-    //     let button = new St.Label({
-    //         text: 'Window List',
-    //         style_class: 'panel-button',
-    //         width: 140,
-    //         x_expand: false,
-    //     });
-    //     panel._leftBox.insert_child_at_index(button, -1);
-    //     this._buttons.push(button)
-    // }
-
-    // _removeFromPanel(panel) {
-    //     this._buttons = this._buttons.filter(item => {
-    //         if (item.panel === panel) {
-    //             item.label.destroy();
-    //             return false;
-    //         }
-    //         return true;
-    //     });
-    // }
-
     _destroyWindowLists() {
         // Clean up all WindowList instances
         console.log("Destroying windowLists");
@@ -496,7 +459,6 @@ export default class PanelWindowListExtension extends Extension {
     disable() {
         this._destroyWindowLists();
         global.dashToPanel?.disconnectObject(this);
-        // Main.layoutManager.disconnectObject(this);
         Main.extensionManager.disconnectObject(this);
         
         console.log("PWL extension disabled");
