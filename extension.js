@@ -3,6 +3,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js'
 import {ExtensionState} from 'resource:///org/gnome/shell/misc/extensionUtils.js'
 import Shell from 'gi://Shell';
 import St from 'gi://St';
+import Mtk from 'gi://Mtk';
 
 // Feature checklist:
 // - [x] Draw icon
@@ -147,6 +148,7 @@ class WindowButton {
 
     _updateMinimized() {
         console.log("WindowButton._updateMinimized() called");
+        this._updateIconGeometry();
         if (this.button) {
             let alpha = this.window.minimized ? MINIMIZED_ALPHA : 1.0;
             this.icon.opacity = alpha * 255;
@@ -182,6 +184,20 @@ class WindowButton {
         return false;
     }
 
+    _updateIconGeometry() {
+        console.log("WindowButton._updateIconGeometry() called");
+        // Ensure button is on stage before calculating geometry
+        if (!this.button || this.button.get_stage() == null) {
+            return;
+        }
+
+        let rect = new Mtk.Rectangle();
+        [rect.x, rect.y] = this.button.get_transformed_position();
+        [rect.width, rect.height] = this.button.get_transformed_size();
+        
+        this.window.set_icon_geometry(rect);
+    }
+
     _onButtonClicked() {
         console.log("WindowButton._onButtonClicked() called");
         if (this._isFocused()) {
@@ -202,6 +218,11 @@ class WindowButton {
     }
 
     destroy() {
+        // Clear icon geometry to disable minimize animations
+        if (this.window) {
+            this.window.set_icon_geometry(null);
+        }
+        
         if (this.button) {
             this.button.destroy();
         }
