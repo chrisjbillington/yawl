@@ -46,6 +46,8 @@ class WindowButton {
             x_expand: false,
         });
         
+        this.button.connect('destroy', this._onButtonDestroyed.bind(this));
+
         console.log(`WindowButton created for: ${truncatedTitle}`);
         this.updateVisibility();
     }
@@ -58,10 +60,14 @@ class WindowButton {
         this.button.visible = visible;
     }
 
+    _onButtonDestroyed() {
+        console.log("WindowButton._onButtonDestroyed() called");
+        this.button = null;
+    }
+
     destroy() {
         if (this.button) {
             this.button.destroy();
-            this.button = null;
         }
     }
 }
@@ -77,6 +83,8 @@ class WindowList {
             x_expand: false,
         });
         
+        this.container.connect('destroy', this._onContainerDestroyed.bind(this));
+
         // Insert container into panel's left box
         panel._leftBox.insert_child_at_index(this.container, -1);
         
@@ -146,6 +154,11 @@ class WindowList {
         }
     }
     
+    _onContainerDestroyed() {
+        console.log("WindowList._onContainerDestroyed() called");
+        this.container = null;
+    }
+
     destroy() {
         global.display.disconnectObject(this);
         
@@ -159,9 +172,7 @@ class WindowList {
         if (this.container) {
             this.panel._leftBox.remove_child(this.container);
             this.container.destroy();
-            this.container = null;
         }
-        
         console.log(`WindowList destroyed for panel on monitor ${this.panel.monitor.index}`);
     }
 }
