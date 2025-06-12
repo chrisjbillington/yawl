@@ -5,9 +5,9 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 // Feature checklist:
-// - [ ] Draw icon
-// - [ ] Update title when it changes
-// - [ ] Update icon when it changes
+// - [x] Draw icon
+// - [x] Update title when it changes
+// - [x] Update icon when it changes
 // - [ ] Update alert status when it changes
 // - [ ] Update focus status when it changes
 // - [ ] Update minimised status when it changes
@@ -17,14 +17,16 @@ import St from 'gi://St';
 // - [ ] Scroll raises next window, no periodic boundary
 // - [ ] Click and drag reorders
 // - [ ] Window demanding attention gets highlighted
-// - [ ] Lighten on hover over and slightly more on click
+// - [x] Lighten on hover over and slightly more on click
 // - [ ] Dim significantly if minimised
 // - [ ] lightened if active window
 // - [ ] Tooltip is window title
 // - [ ] Minimise/restore animation should respect the location of the window list entry
 // - [ ] Window order should survive suspend/restore and monitor hotplugging
+// - [x] Windows moved to new workspaces/monitors should go to the end of the list
 // - [ ] Super tab/Super shift-tab should tab through windows in taskbar order
 //   (probably: monitor order then taskbar order)
+// - [ ] Window list should not exceed available space in panel - buttons should shrink
 
 // Architecture plan:
 // * For each panel, we make a WindowList instance (which will be a class we'll have to
@@ -38,8 +40,12 @@ const DASH_TO_PANEL_UUID = 'dash-to-panel@jderose9.github.com';
 // Settings, later to be put in settings app
 const ISOLATE_MONITORS = true;
 const ISOLATE_WORKSPACES = true;
-const WINDOW_BUTTON_WIDTH = 160;
-const ICON_SIZE = 24;
+const WINDOW_TITLE_WIDTH = 140;
+const ICON_SIZE = 18;
+const HBOX_PADDING_LEFT = 6;
+const HBOX_PADDING_RIGHT = 6;
+const ICON_LABEL_SPACING = 6;
+const LABEL_FONT_SIZE = 13;
 
 class WindowButton {
     constructor(window, monitor_index) {
@@ -49,12 +55,19 @@ class WindowButton {
         
         this.button = new St.Button({
             style_class: 'panel-button',
-            width: WINDOW_BUTTON_WIDTH,
+            style: 'border-width: 1px; border-radius: 0px; transition-duration: 0s;',
         });
 
-        this.hbox = new St.BoxLayout();
-        this.icon = new St.Bin();
-        this.label = new St.Label();
+        this.hbox = new St.BoxLayout({
+            style: `padding-left: ${HBOX_PADDING_LEFT}px; padding-right: ${HBOX_PADDING_RIGHT}px; spacing: ${ICON_LABEL_SPACING}px;`,
+        });
+
+        this.icon = new St.Bin({});
+
+        this.label = new St.Label({
+            style: `font-size: ${LABEL_FONT_SIZE}px;`,
+            width: WINDOW_TITLE_WIDTH,
+        });
 
         this.hbox.add_child(this.icon);
         this.hbox.add_child(this.label);
