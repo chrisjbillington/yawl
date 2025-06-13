@@ -1,0 +1,86 @@
+/*
+ * Panel Window List Extension Stylesheet
+ * 
+ * All styling defined here with hardcoded values.
+ * JavaScript only manages CSS class names for state.
+ */
+
+/* Window List Container */
+.window-list-container {
+    spacing: 0px;
+}
+
+/* Base Window Button Styling */
+.window-button {
+    border-width: 1px;
+    border-radius: 2px;
+    transition-duration: 0s;
+    padding: 0;
+    margin: 0;
+}
+
+/* Window Button Content (hbox) */
+.window-button-content {
+    padding-left: 6px;
+    padding-right: 6px;
+    spacing: 6px;
+}
+
+/* Window Button Label */
+.window-button-label {
+    font-size: 13px;
+    width: 140px;
+}
+
+/* Pseudo-states for interactive feedback */
+.window-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.window-button:active {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Focused state */
+.window-button.focused {
+    background-color: rgba(128, 128, 128, 0.45);
+}
+
+.window-button.focused:hover {
+    background-color: rgba(180, 180, 180, 0.50);
+}
+
+.window-button.focused:active {
+    background-color: rgba(200, 200, 200, 0.53);
+}
+
+/* Urgent state */
+.window-button.urgent {
+    background-color: rgba(255, 183, 77, 0.33);
+}
+
+.window-button.urgent:hover {
+    background-color: rgba(255, 183, 77, 0.40);
+}
+
+.window-button.urgent:active {
+    background-color: rgba(255, 183, 77, 0.44);
+}
+
+/* Minimized state - opacity handled via JavaScript */
+.window-button.minimized {
+    /* Opacity set via JavaScript to 0.5 on icon and label */
+}
+
+/* Explicit drag styling - no more relying on hover states */
+.window-button.dragging {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Override hover/active states during drag to prevent conflicts */
+.window-button.dragging:hover,
+.window-button.dragging:active {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background-color: rgba(255, 255, 255, 0.15);
+}

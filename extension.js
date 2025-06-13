@@ -1,11 +1,11 @@
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js'
 import {ExtensionState} from 'resource:///org/gnome/shell/misc/extensionUtils.js'
-import * as PointerWatcher from 'resource:///org/gnome/shell/ui/pointerWatcher.js';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 import Mtk from 'gi://Mtk';
 import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
 
 // Feature checklist:
 // - [x] Draw icon
@@ -40,20 +40,14 @@ import Clutter from 'gi://Clutter';
 //   later.
 
 const DASH_TO_PANEL_UUID = 'dash-to-panel@jderose9.github.com';
+const DRAG_TIMEOUT_INTERVAL_MS = 50;
 
-// Settings, later to be put in settings app
 const ISOLATE_MONITORS = true;
 const ISOLATE_WORKSPACES = true;
 const WINDOW_TITLE_WIDTH = 140;
 const ICON_SIZE = 18;
-const HBOX_PADDING_LEFT = 6;
-const HBOX_PADDING_RIGHT = 6;
-const ICON_LABEL_SPACING = 6;
-const LABEL_FONT_SIZE = 13;
 const MINIMIZED_ALPHA = 0.5;
-const FOCUSED_BACKGROUND_COLOR = 'rgba(128, 128, 128, 0.45)';
-const URGENT_BACKGROUND_COLOR = 'rgba(255, 183, 77, 0.33)';
-const BASE_BUTTON_STYLE = 'border-width: 1px; border-radius: 2px; transition-duration: 0s;';
+
 
 class WindowButton {
     constructor(window, monitor_index) {
@@ -62,20 +56,22 @@ class WindowButton {
         this.monitor_index = monitor_index;
         
         this.button = new St.Button({
-            style_class: 'panel-button',
-            style: 'border-width: 1px; border-radius: 0px; transition-duration: 0s;',
+            style_class: 'window-button',
         });
 
         this.hbox = new St.BoxLayout({
-            style: `padding-left: ${HBOX_PADDING_LEFT}px; padding-right: ${HBOX_PADDING_RIGHT}px; spacing: ${ICON_LABEL_SPACING}px;`,
+            style_class: 'window-button-content',
         });
 
         this.icon = new St.Bin({});
 
         this.label = new St.Label({
-            style: `font-size: ${LABEL_FONT_SIZE}px;`,
-            width: WINDOW_TITLE_WIDTH,
+            style_class: 'window-button-label',
         });
+        
+        // Track current state for CSS class management
+        this._currentState = 'normal';
+        this._isDragging = false;
 
         this.hbox.add_child(this.icon);
         this.hbox.add_child(this.label);
@@ -174,17 +170,42 @@ class WindowButton {
     }
 
     _updateStyle() {
-        if (this.button) {
-            if (this.window.demands_attention || this.window.urgent) {
-                // console.log("Window is demanding attention!");
-                // Attention/urgent takes priority over focus
-                this.button.style = BASE_BUTTON_STYLE + ` background-color: ${URGENT_BACKGROUND_COLOR};`;
-            } else if (this._isFocused()) {
-                this.button.style = BASE_BUTTON_STYLE + ` background-color: ${FOCUSED_BACKGROUND_COLOR};`;
-            } else {
-                this.button.style = BASE_BUTTON_STYLE;
-            }
+        if (!this.button) return;
+        
+        // Remove all state classes
+        this.button.remove_style_class_name('focused');
+        this.button.remove_style_class_name('urgent');
+        this.button.remove_style_class_name('minimized');
+        
+        // Add appropriate state class
+        if (this.window.demands_attention || this.window.urgent) {
+            this.button.add_style_class_name('urgent');
+            this._currentState = 'urgent';
+        } else if (this._isFocused()) {
+            this.button.add_style_class_name('focused');
+            this._currentState = 'focused';
+        } else {
+            this._currentState = 'normal';
         }
+        
+        // Handle minimized state
+        if (this.window.minimized) {
+            this.button.add_style_class_name('minimized');
+        }
+        // Sync hover state
+        this.button.sync_hover();
+    }
+    
+    setDragging(isDragging) {
+        if (!this.button) return;
+        
+        this._isDragging = isDragging;
+        if (isDragging) {
+            this.button.add_style_class_name('dragging');
+        } else {
+            this.button.remove_style_class_name('dragging');
+        }
+        this._updateStyle();
     }
 
     _isFocused() {
@@ -296,10 +317,9 @@ class WindowList {
         // console.log(`WindowList created for panel on monitor ${panel.monitor.index}`);
         
         // Initialize drag state
-        this._draggedButton = null;
         this._dragInProgress = false;
-        this._pointerWatch = null;
-        this._lastButtonState = false;
+        this._draggedButton = null;
+        this._dragTimeoutId = 0;
     }
     
     _getWindowButtonIndex(window) {
@@ -330,6 +350,7 @@ class WindowList {
         button.button.connect('scroll-event', this._onScrollEvent.bind(this));
         button.button.connect('button-press-event', this._onButtonPress.bind(this));
         button.button.connect('leave-event', this._onButtonLeave.bind(this));
+        button.button.connect('enter-event', this._onButtonEnter.bind(this));
         this.windowButtons.push(button);
         this.container.add_child(button.button);
     }
@@ -444,53 +465,56 @@ class WindowList {
         visibleButtons[currentIndex - 1].window.activate(global.get_current_time());
     }
 
+    _leftMouseButtonIsDown() {
+        // Check global button state - returns [x, y, modifier_mask]
+        let [, , modifierMask] = global.get_pointer();
+        return !!(modifierMask & Clutter.ModifierType.BUTTON1_MASK);
+    }
+
     _onButtonPress(actor, event) {
-        let button = event.get_button();
-        
-        if (button === 1) { // Left mouse button - start drag
-            // console.log("WindowList._onButtonPress() - starting drag");
-            
-            // End any existing drag first to prevent overlapping
-            if (this._dragInProgress) {
-                this._endDrag();
-            }
-            
-            // Find which WindowButton this corresponds to
-            this._draggedButton = this.windowButtons.find(btn => btn.button === actor);
-            
-            if (this._draggedButton) {
-                this._dragInProgress = true;
-                this._lastButtonState = true;
-                
-                // Start global pointer watching - checks every 50ms
-                this._pointerWatch = PointerWatcher.getPointerWatcher().addWatch(50, this._onPointerChanged.bind(this));
-                
-                // console.log(`Starting drag for window: ${this._draggedButton.window.get_title()}`);
-            }
-            
-            // Don't prevent - let WindowButton handle the activation
-            return false;
+        // End any existing drag to prevent overlapping
+        if (this._dragInProgress) {
+            this._endDrag();
         }
-        
-        return false;
+    }
+
+    _onButtonEnter(actor, event) {
+        // If the user is moving their mouse between buttons during a drag, do an update
+        // of the drag state immediately instead of waiting for the timeout, to avoid
+        // flicker
+        if (this._dragInProgress) {
+            this._onDragTimeout();
+            return true;
+        }
     }
 
     _onButtonLeave(actor, event) {
-        // Clear pressed state when mouse leaves button during drag
-        if (this._dragInProgress) {
+        if (this._leftMouseButtonIsDown() && !this._dragInProgress) {
+            // Start drag
             let button = this.windowButtons.find(btn => btn.button === actor);
-            if (button && button.button.fake_release) {
-                button.button.fake_release();
+            if (button) {
+                this._dragInProgress = true;
+                this._draggedButton = button;
+                // Set dragging visual style on the button:
+                this._draggedButton.setDragging(true);
+                // Start timout to monitor pointer every 50ms during the drag
+                this._dragTimeoutId = GLib.timeout_add(
+                    GLib.PRIORITY_DEFAULT,
+                    DRAG_TIMEOUT_INTERVAL_MS,
+                    this._onDragTimeout.bind(this),
+                )
             }
+            
         }
-        return false;
     }
 
-    _onPointerChanged(x, y) {
-        if (!this._dragInProgress || !this._draggedButton) {
+    _onDragTimeout() {
+        if (!this._leftMouseButtonIsDown()) {
+            // console.log("Global button release detected - ending drag");
+            this._endDrag();
             return;
         }
-
+        
         // Check if dragged button still exists and is visible
         if (!this.windowButtons.includes(this._draggedButton) || !this._draggedButton.button.visible) {
             // console.log("Dragged button no longer exists or visible - ending drag");
@@ -498,22 +522,8 @@ class WindowList {
             return;
         }
 
-        // Check global button state - returns [x, y, modifier_mask]
-        let [, , modifierMask] = global.get_pointer();
-        let buttonPressed = !!(modifierMask & Clutter.ModifierType.BUTTON1_MASK);
-        
-        // If button was pressed and is now released, end drag
-        if (this._lastButtonState && !buttonPressed) {
-            // console.log("Global button release detected - ending drag");
-            this._endDrag();
-            return;
-        }
-        
-        this._lastButtonState = buttonPressed;
-        
-        // Only continue if button is still pressed
-        if (!buttonPressed) return;
-        
+        let [x, y] = global.get_pointer();
+
         // Convert to container coordinates
         let [containerX, containerY] = this.container.get_transformed_position();
         let relativeX = x - containerX;
@@ -525,6 +535,7 @@ class WindowList {
             // console.log(`Dragging to target: ${targetButton.window.get_title()}`);
             this._reorderToTarget(targetButton);
         }
+        return GLib.SOURCE_CONTINUE;
     }
 
     _getButtonAtPosition(x) {
@@ -576,28 +587,23 @@ class WindowList {
         } else {
             this.container.add_child(this._draggedButton.button);
         }
-        
-        // Reapply hover styling since it gets reset
-        this._draggedButton.button.set_hover(true);
     }
 
     _endDrag() {
         // console.log("WindowList._endDrag() called");
         
-        // Clear hover state and sync to actual mouse position
-        if (this._draggedButton && this._draggedButton.button) {
-            this._draggedButton.button.set_hover(false);
-            this._draggedButton.button.sync_hover();
+        // Clear dragging state
+        if (this._draggedButton) {
+            this._draggedButton.setDragging(false);
         }
 
         this._dragInProgress = false;
         this._draggedButton = null;
-        this._lastButtonState = false;
         
-        // Stop global pointer watching
-        if (this._pointerWatch) {
-            this._pointerWatch.remove();
-            this._pointerWatch = null;
+        // Stop monitoring the mouse state:
+        if (this._dragTimeoutId) {
+            GLib.source_remove(this._dragTimeoutId);
+            this._dragTimeoutId = 0;
         }
     }
 
