@@ -69,10 +69,6 @@ class WindowButton {
             style_class: 'window-button-label',
         });
         
-        // Track current state for CSS class management
-        this._currentState = 'normal';
-        this._isDragging = false;
-
         this.hbox.add_child(this.icon);
         this.hbox.add_child(this.label);
         this.button.set_child(this.hbox);
@@ -84,7 +80,7 @@ class WindowButton {
         // Monitor global focus changes
         global.display.connectObject(
             'notify::focus-window',
-            this._updateFocus.bind(this),
+            this._updateStyle.bind(this),
             this,
         );
 
@@ -100,9 +96,9 @@ class WindowButton {
             'notify::minimized',
             this._updateMinimized.bind(this),
             'notify::demands-attention',
-            this._updateUrgent.bind(this),
+            this._updateStyle.bind(this),
             'notify::urgent',
-            this._updateUrgent.bind(this),
+            this._updateStyle.bind(this),
             this,
         )
         
@@ -110,8 +106,7 @@ class WindowButton {
         this._updateIcon();
         this.updateVisibility();
         this._updateMinimized();
-        this._updateFocus();
-        this._updateUrgent();
+        this._updateStyle();
 
         // console.log(`WindowButton created for: ${this.window.get_title()}`);
     }
@@ -159,38 +154,18 @@ class WindowButton {
         }
     }
 
-    _updateUrgent() {
-        // console.log("WindowButton._updateUrgent() called");
-        this._updateStyle();
-    }
-
-    _updateFocus() {
-        // console.log("WindowButton._updateFocus() called");
-        this._updateStyle();
-    }
-
     _updateStyle() {
         if (!this.button) return;
         
         // Remove all state classes
         this.button.remove_style_class_name('focused');
         this.button.remove_style_class_name('urgent');
-        this.button.remove_style_class_name('minimized');
         
         // Add appropriate state class
         if (this.window.demands_attention || this.window.urgent) {
             this.button.add_style_class_name('urgent');
-            this._currentState = 'urgent';
         } else if (this._isFocused()) {
             this.button.add_style_class_name('focused');
-            this._currentState = 'focused';
-        } else {
-            this._currentState = 'normal';
-        }
-        
-        // Handle minimized state
-        if (this.window.minimized) {
-            this.button.add_style_class_name('minimized');
         }
         // Sync hover state
         this.button.sync_hover();
@@ -198,12 +173,12 @@ class WindowButton {
     
     setDragging(isDragging) {
         if (!this.button) return;
-        
-        this._isDragging = isDragging;
         if (isDragging) {
             this.button.add_style_class_name('dragging');
         } else {
             this.button.remove_style_class_name('dragging');
+            // Remove "active" state for styling, may not be removed otherwise: 
+            this.button.fake_release();
         }
         this._updateStyle();
     }
