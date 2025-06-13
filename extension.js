@@ -16,7 +16,7 @@ import GLib from 'gi://GLib';
 // - [x] Update focus status when it changes
 // - [x] Update minimised status when it changes
 // - [x] Click raises or minimises
-// - [ ] Right click should get window menu
+// - [ ] Right click should get window menu (maybe not possible)
 // - [x] Middle click close
 // - [x] Scroll raises next window, no periodic boundary
 // - [x] Click and drag reorders
@@ -31,14 +31,12 @@ import GLib from 'gi://GLib';
 // - [ ] Super tab/Super shift-tab should tab through windows in taskbar order
 //   (probably: monitor order then taskbar order)
 // - [ ] Window list should not exceed available space in panel - buttons should shrink
-// - [ ] Favourites should be launchers on the left - with tooltips
+// - [x] Favourites should be launchers on the left
+// - [ ] Favourites have tooltips
+// - [ ] Favourites drag-drop reorderable
+// - [ ] Favourites have a context menu for e.g. unpinning
+// - [ ] Window buttons context menu should have entry  to allow pinning to favourites
 
-// Architecture plan:
-// * For each panel, we make a WindowList instance (which will be a class we'll have to
-//   implement), which loads all existing windows and watches for new ones. These
-//   WindowList instances are totally independent. Each contains an ordered list of all
-//   windows regardless of display/workspace/etc, which will be filtered for display
-//   later.
 
 const DRAG_TIMEOUT_INTERVAL_MS = 50;
 
