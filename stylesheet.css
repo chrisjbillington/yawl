@@ -32,18 +32,21 @@
     width: 140px;
 }
 
-/* Pseudo-states for interactive feedback */
+
+/* Normal window button pseudo-states */
 .window-button:hover {
     background-color: rgba(255, 255, 255, 0.1);
 }
-
-.window-button:active {
+.window-button:active,
+.window-button.dragging,
+.window-button.dragging:hover,
+.window-button.dragging:active {
     background-color: rgba(255, 255, 255, 0.175);
 }
 
 
-/* Focused state */
-.window-button.focused {
+/* Window button focused state */
+.window-button.focused{
     background-color: rgba(255, 255, 255, 0.25);
 }
 
@@ -51,12 +54,15 @@
     background-color: rgba(255, 255, 255, 0.325);
 }
 
-.window-button.focused:active {
+.window-button.focused:active,
+.window-button.focused.dragging,
+.window-button.focused.dragging:hover,
+.window-button.focused.dragging:active  {
     background-color: rgba(255, 255, 255, 0.38125);
 }
 
 
-/* Urgent state */
+/* Window button urgent state */
 .window-button.urgent {
     background-color: rgba(255, 183, 77, 0.25);
 }
@@ -65,12 +71,15 @@
     background-color: rgba(255, 183, 77, 0.325);
 }
 
-.window-button.urgent:active {
+.window-button.urgent:active,
+.window-button.urgent.dragging,
+.window-button.urgent.dragging:hover,
+.window-button.urgent.dragging:active {
     background-color: rgba(255, 183, 77, 0.38125);
 }
 
 
-/* Urgent focused state */
+/* Window button urgent focused state */
 .window-button.urgent.focused {
     background-color: rgba(255, 183, 77, 0.5);
 }
@@ -79,31 +88,26 @@
     background-color: rgba(255, 183, 77, 0.55);
 }
 
-.window-button.urgent.focused:active {
+.window-button.urgent.focused:active,
+.window-button.urgent.focused.dragging,
+.window-button.urgent.focused.dragging:hover,
+.window-button.urgent.focused.dragging:active {
     background-color: rgba(255, 183, 77, 0.625);
 }
 
 
-/* Dragging state */
+/* Add a border for all dragging states */
 .window-button.dragging,
 .window-button.dragging:hover,
-.window-button.dragging:active {
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background-color: rgba(255, 255, 255, 0.175);
-}
-
-/* Dragging focused state */
+.window-button.dragging:active,
 .window-button.focused.dragging,
 .window-button.focused.dragging:hover,
-.window-button.focused.dragging:active {
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background-color: rgba(255, 255, 255, 0.38125);
-}
-
-/* Dragging urgent state */
+.window-button.focused.dragging:active,
 .window-button.urgent.dragging,
 .window-button.urgent.dragging:hover,
-.window-button.urgent.dragging:active {
+.window-button.urgent.dragging:active,
+.window-button.urgent.focused.dragging,
+.window-button.urgent.focused.dragging:hover,
+.window-button.urgent.focused.dragging:active {
     border: 1px solid rgba(255, 255, 255, 0.2);
-    background-color: rgba(255, 183, 77, 0.38125);
 }
