@@ -111,3 +111,35 @@
 .window-button.urgent.focused.dragging:active {
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
+
+
+/* Favorites container */
+.favorites-container {
+    padding-left: 0px;
+    padding-right: 0px;
+    spacing: 0px;
+}
+
+/* Favorite button */
+.favorite-button {
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+/* Normal favorite button pseudo-states */
+.favorite-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+.favorite-button:active,
+.favorite-button.dragging,
+.favorite-button.dragging:hover,
+.favorite-button.dragging:active {
+    background-color: rgba(255, 255, 255, 0.175);
+}
+
+/* Add a border for all dragging states */
+.favorite-button.dragging,
+.favorite-button.dragging:hover,
+.favorite-button.dragging:active {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}

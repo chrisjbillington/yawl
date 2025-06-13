@@ -1,6 +1,7 @@
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js'
 import {ExtensionState} from 'resource:///org/gnome/shell/misc/extensionUtils.js'
+import * as AppFavorites from 'resource:///org/gnome/shell/ui/appFavorites.js'
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 import Mtk from 'gi://Mtk';
@@ -252,16 +253,34 @@ class WindowList {
         this.panel = panel;
         this.windowButtons = [];
         
-        // Create horizontal container for window buttons
-        this.container = new St.BoxLayout({
+        // Create main widget to hold everything
+        this.widget = new St.BoxLayout({
             style_class: 'window-list-container',
             x_expand: false,
         });
         
-        this.container.connect('destroy', this._onContainerDestroyed.bind(this));
+        this.widget.connect('destroy', this._onWidgetDestroyed.bind(this));
 
-        // Insert container into panel's left box
-        panel._leftBox.insert_child_at_index(this.container, -1);
+        // Insert widget into panel's left box
+        panel._leftBox.insert_child_at_index(this.widget, -1);
+        
+        // Create container for window buttons
+        this.windowButtonsContainer = new St.BoxLayout({
+            x_expand: false,
+        });
+        
+        // Initialize favorites
+        this.favoritesContainer = null;
+        
+        // Connect to favorites changed signal
+        AppFavorites.getAppFavorites().connectObject(
+            'changed',
+            this._recreateFavorites.bind(this),
+            this,
+        );
+        
+        // Create initial favorites
+        this._createFavorites();
         
         // Watch for window creation:
         global.display.connectObject(
@@ -314,14 +333,14 @@ class WindowList {
             this,
         )
 
-        // Create WindowButton and add to container
+        // Create WindowButton and add to window buttons container
         const button = new WindowButton(window, this.panel.monitor.index);
         button.button.connect('scroll-event', this._onScrollEvent.bind(this));
         button.button.connect('button-press-event', this._onButtonPress.bind(this));
         button.button.connect('leave-event', this._onButtonLeave.bind(this));
         button.button.connect('enter-event', this._onButtonEnter.bind(this));
         this.windowButtons.push(button);
-        this.container.add_child(button.button);
+        this.windowButtonsContainer.add_child(button.button);
     }
     
     _onWindowEnteredMonitor(display, monitor_index, window) {
@@ -364,16 +383,16 @@ class WindowList {
         let buttonIndex = this._getWindowButtonIndex(window);
         let button = this.windowButtons[buttonIndex];
         if (button) {
-            this.container.remove_child(button.button);
+            this.windowButtonsContainer.remove_child(button.button);
             button.destroy();
             this.windowButtons.splice(buttonIndex, 1);
         }
     }
     
     _moveButtonToEnd(button) {
-        // Move in container
-        this.container.remove_child(button.button);
-        this.container.add_child(button.button);
+        // Move in window buttons container
+        this.windowButtonsContainer.remove_child(button.button);
+        this.windowButtonsContainer.add_child(button.button);
         
         // Move in array to keep in sync
         let index = this.windowButtons.indexOf(button);
@@ -486,8 +505,8 @@ class WindowList {
 
         let [x, y] = global.get_pointer();
 
-        // Convert to container coordinates
-        let [containerX, containerY] = this.container.get_transformed_position();
+        // Convert to window buttons container coordinates
+        let [containerX, containerY] = this.windowButtonsContainer.get_transformed_position();
         let relativeX = x - containerX;
         
         // Find target button based on x position
@@ -501,7 +520,7 @@ class WindowList {
 
     _getButtonAtPosition(x) {
         // If position is to the right of all buttons, target the last visible button
-        if (x >= this.container.width) {
+        if (x >= this.windowButtonsContainer.width) {
             let visibleButtons = this.windowButtons.filter(btn => btn.button.visible);
             return visibleButtons[visibleButtons.length - 1] || null;
         }
@@ -530,21 +549,21 @@ class WindowList {
         
         // Remove dragged button from current position
         this.windowButtons.splice(draggedIndex, 1);
-        this.container.remove_child(this._draggedButton.button);
+        this.windowButtonsContainer.remove_child(this._draggedButton.button);
         
         // Insert at target position (index noted before removal)
         this.windowButtons.splice(targetIndex, 0, this._draggedButton);
         
         // Find the St widget to insert before
         let insertBeforeWidget = null;
-        if (targetIndex < this.container.get_n_children()) {
-            insertBeforeWidget = this.container.get_child_at_index(targetIndex);
+        if (targetIndex < this.windowButtonsContainer.get_n_children()) {
+            insertBeforeWidget = this.windowButtonsContainer.get_child_at_index(targetIndex);
         }
         
         if (insertBeforeWidget) {
-            this.container.insert_child_below(this._draggedButton.button, insertBeforeWidget);
+            this.windowButtonsContainer.insert_child_below(this._draggedButton.button, insertBeforeWidget);
         } else {
-            this.container.add_child(this._draggedButton.button);
+            this.windowButtonsContainer.add_child(this._draggedButton.button);
         }
     }
 
@@ -565,16 +584,62 @@ class WindowList {
         }
     }
 
-    _onContainerDestroyed() {
-        this.container = null;
+    _createFavorites() {
+        // Create container for favorites
+        this.favoritesContainer = new St.BoxLayout({
+            style_class: 'favorites-container',
+            x_expand: false,
+        });
+        
+        // Add both containers to the main widget in order: favorites first, then window buttons
+        this.widget.add_child(this.favoritesContainer);
+        this.widget.add_child(this.windowButtonsContainer);
+        
+        // Get favorites and create icons
+        let favorites = AppFavorites.getAppFavorites().getFavorites();
+        favorites.forEach(app => {
+            let button = new St.Button({
+                style_class: 'favorite-button',
+            });
+            button.child = app.create_icon_texture(ICON_SIZE);
+            
+            // Add click handler to launch a new instance of the app
+            button.connect('clicked', () => {
+                app.open_new_window(-1);
+            });
+            
+            this.favoritesContainer.add_child(button);
+        });
+    }
+
+    _destroyFavorites() {
+        if (this.favoritesContainer) {
+            this.widget.remove_child(this.favoritesContainer);
+            this.widget.remove_child(this.windowButtonsContainer);
+            this.favoritesContainer.destroy();
+            this.favoritesContainer = null;
+        }
+    }
+
+    _recreateFavorites() {
+        this._destroyFavorites();
+        this._createFavorites();
+    }
+
+    _onWidgetDestroyed() {
+        this.widget = null;
     }
 
     destroy() {
         global.display.disconnectObject(this);
         global.window_manager.disconnectObject(this);
+        AppFavorites.getAppFavorites().disconnectObject(this);
         
         // Clean up drag state
         this._endDrag();
+        
+        // Clean up favorites
+        this._destroyFavorites();
         
         // Clean up all window buttons
         this.windowButtons.forEach(windowButton => {
@@ -582,10 +647,10 @@ class WindowList {
         });
         this.windowButtons = [];
         
-        // Remove container from panel and destroy it
-        if (this.container) {
-            this.panel._leftBox.remove_child(this.container);
-            this.container.destroy();
+        // Remove widget from panel and destroy it
+        if (this.widget) {
+            this.panel._leftBox.remove_child(this.widget);
+            this.widget.destroy();
         }
     }
 }
