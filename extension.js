@@ -631,6 +631,7 @@ export default class PanelWindowListExtension extends Extension {
             this,
         );
         
+        this._connectedToDashToPanel = false;
         // Check if dash to panel is active already:
         if (global.dashToPanel) {
             this._connectToDashToPanel();
@@ -641,20 +642,25 @@ export default class PanelWindowListExtension extends Extension {
 
     _onExtensionStateChanged(manager, extension) {
         if (extension.uuid === DASH_TO_PANEL_UUID) {
-            if (extension.state === ExtensionState.ACTIVE) {
+            if (extension.state === ExtensionState.ACTIVE && !this._connectedToDashToPanel) {
                 // Dash to panel enabled. Start watching for panel creation:
                 // console.log("Dash to panel was activated");
                 this._connectToDashToPanel();
             }
-            if (extension.state === ExtensionState.INACTIVE) {
+            if (extension.state === ExtensionState.INACTIVE && this._connectedToDashToPanel) {
                 // Dash to panel disabled, clean up:
                 // console.log("Dash to panel was deactivated");
                 this._destroyWindowLists();
+                this._connectedToDashToPanel = false;
             }
         }
     }
 
     _connectToDashToPanel() {
+        if (this._connectedToDashToPanel) {
+            return;
+        }
+        this._connectedToDashToPanel = true;
         global.dashToPanel.connectObject(
             'panels-created',
             this._onPanelsCreated.bind(this),
