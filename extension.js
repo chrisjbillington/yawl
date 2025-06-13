@@ -164,7 +164,8 @@ class WindowButton {
         // Add appropriate state class
         if (this.window.demands_attention || this.window.urgent) {
             this.button.add_style_class_name('urgent');
-        } else if (this._isFocused()) {
+        }
+        if (this._isFocused()) {
             this.button.add_style_class_name('focused');
         }
         // Sync hover state

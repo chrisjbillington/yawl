@@ -38,55 +38,72 @@
 }
 
 .window-button:active {
-    background-color: rgba(255, 255, 255, 0.15);
+    background-color: rgba(255, 255, 255, 0.175);
 }
+
 
 /* Focused state */
 .window-button.focused {
-    background-color: rgba(128, 128, 128, 0.45);
+    background-color: rgba(255, 255, 255, 0.25);
 }
 
 .window-button.focused:hover {
-    background-color: rgba(180, 180, 180, 0.50);
+    background-color: rgba(255, 255, 255, 0.325);
 }
 
 .window-button.focused:active {
-    background-color: rgba(200, 200, 200, 0.53);
+    background-color: rgba(255, 255, 255, 0.38125);
 }
+
 
 /* Urgent state */
 .window-button.urgent {
-    background-color: rgba(255, 183, 77, 0.33);
+    background-color: rgba(255, 183, 77, 0.25);
 }
 
 .window-button.urgent:hover {
-    background-color: rgba(255, 183, 77, 0.40);
+    background-color: rgba(255, 183, 77, 0.325);
 }
 
 .window-button.urgent:active {
-    background-color: rgba(255, 183, 77, 0.44);
+    background-color: rgba(255, 183, 77, 0.38125);
 }
 
-/* unfocused, non-urgent button being dragged - use active style */
+
+/* Urgent focused state */
+.window-button.urgent.focused {
+    background-color: rgba(255, 183, 77, 0.5);
+}
+
+.window-button.urgent.focused:hover {
+    background-color: rgba(255, 183, 77, 0.55);
+}
+
+.window-button.urgent.focused:active {
+    background-color: rgba(255, 183, 77, 0.625);
+}
+
+
+/* Dragging state */
 .window-button.dragging,
 .window-button.dragging:hover,
 .window-button.dragging:active {
     border: 1px solid rgba(255, 255, 255, 0.2);
-    background-color: rgba(255, 255, 255, 0.15);
+    background-color: rgba(255, 255, 255, 0.175);
 }
 
-/* Focused button being dragged - use focused:active styling */
+/* Dragging focused state */
 .window-button.focused.dragging,
 .window-button.focused.dragging:hover,
 .window-button.focused.dragging:active {
     border: 1px solid rgba(255, 255, 255, 0.2);
-    background-color: rgba(200, 200, 200, 0.53);
+    background-color: rgba(255, 255, 255, 0.38125);
 }
 
-/* Urgent button being dragged - use urgent:active styling */
+/* Dragging urgent state */
 .window-button.urgent.dragging,
 .window-button.urgent.dragging:hover,
 .window-button.urgent.dragging:active {
     border: 1px solid rgba(255, 255, 255, 0.2);
-    background-color: rgba(255, 183, 77, 0.44);
+    background-color: rgba(255, 183, 77, 0.38125);
 }
