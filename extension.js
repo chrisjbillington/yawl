@@ -203,6 +203,11 @@ class WindowButton {
             return;
         }
 
+        // Only set icon geometry if the window is on the same monitor as this button
+        if (this.window.get_monitor() !== this.monitor_index) {
+            return;
+        }
+
         let rect = new Mtk.Rectangle();
         [rect.x, rect.y] = this.button.get_transformed_position();
         [rect.width, rect.height] = this.button.get_transformed_size();
