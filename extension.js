@@ -465,8 +465,8 @@ class WindowList {
         // flicker
         if (this._dragInProgress) {
             this._onDragTimeout();
-            return true;
         }
+        return false; // allow further processing (non-optional for enter/leave events)
     }
 
     _onButtonLeave(actor, event) {
@@ -485,8 +485,8 @@ class WindowList {
                     this._onDragTimeout.bind(this),
                 )
             }
-            
         }
+        return false; // allow further processing (non-optional for enter/leave events)
     }
 
     _onDragTimeout() {
