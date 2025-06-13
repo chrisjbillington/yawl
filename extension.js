@@ -39,7 +39,6 @@ import GLib from 'gi://GLib';
 //   windows regardless of display/workspace/etc, which will be filtered for display
 //   later.
 
-const DASH_TO_PANEL_UUID = 'dash-to-panel@jderose9.github.com';
 const DRAG_TIMEOUT_INTERVAL_MS = 50;
 
 const ISOLATE_MONITORS = true;
@@ -622,6 +621,7 @@ export default class PanelWindowListExtension extends Extension {
     }
 
     enable() {
+        // console.log("enable()");
         this.windowLists = [];
         
         // Watch for extensions being enabled and disabled:
@@ -631,70 +631,86 @@ export default class PanelWindowListExtension extends Extension {
             this,
         );
         
-        this._connectedToDashToPanel = false;
+        this._dashToPanel = null;
+
         // Check if dash to panel is active already:
         if (global.dashToPanel) {
             this._connectToDashToPanel();
         }
-
-        // console.log("PWL enabled");
     }
 
     _onExtensionStateChanged(manager, extension) {
-        if (extension.uuid === DASH_TO_PANEL_UUID) {
-            if (extension.state === ExtensionState.ACTIVE && !this._connectedToDashToPanel) {
-                // Dash to panel enabled. Start watching for panel creation:
-                // console.log("Dash to panel was activated");
-                this._connectToDashToPanel();
-            }
-            if (extension.state === ExtensionState.INACTIVE && this._connectedToDashToPanel) {
-                // Dash to panel disabled, clean up:
-                // console.log("Dash to panel was deactivated");
-                this._destroyWindowLists();
-                this._connectedToDashToPanel = false;
-            }
+        // Dash to panel can be reset by GNOME shell calling its disable() and enable()
+        // methods, without notifying us at all. GNOME shell does this whenever an
+        // extension that was enabled before Dash to Panel was, is disabled. So we
+        // aggressively check the existence and identity of the global dash to panel
+        // object and update our connection to it accordinfly
+        // console.log(`_onExtensionStateChanged(): ${extension.uuid} -> ${extension.state}`);
+        if (global.dashToPanel && !this._dashToPanel) {
+            // DashToPanel exists but we're not connected
+            this._connectToDashToPanel();
+        } else if (!global.dashToPanel && this._dashToPanel) {
+            // DashToPanel gone but we're still connected
+            this._disconnectFromDashToPanel();
+        } else if (global.dashToPanel && this._dashToPanel && global.dashToPanel !== this._dashToPanel) {
+            // DashToPanel exists but it's a different object
+            this._reconnectToDashToPanel();
         }
     }
 
     _connectToDashToPanel() {
-        if (this._connectedToDashToPanel) {
-            return;
-        }
-        this._connectedToDashToPanel = true;
-        global.dashToPanel.connectObject(
+        // console.log("_connectToDashToPanel()");
+        this._dashToPanel = global.dashToPanel;
+        this._dashToPanel.connectObject(
             'panels-created',
-            this._onPanelsCreated.bind(this),
+            this._recreateWindowLists.bind(this),
             this
         );
-        this._onPanelsCreated()
+        this._createWindowLists()
     }
 
-    _onPanelsCreated() {
-        // console.log("Panels created");
-        // Clean up existing window lists:
+    _disconnectFromDashToPanel() {
+        // console.log("_disconnectFromDashToPanel()");
         this._destroyWindowLists();
+        this._dashToPanel.disconnectObject(this);
+        this._dashToPanel = null;
+    }
+
+    _reconnectToDashToPanel() {
+        // console.log("_reconnectToDashToPanel()");
+        this._disconnectFromDashToPanel();
+        this._connectToDashToPanel();
+    }
+
+    _createWindowLists() {
+        // console.log("_createWindowLists()");
         // Create new window lists for each panel:
         global.dashToPanel.panels.forEach(panel => {
-            // console.log(`Got panel on monitor ${panel.monitor.index}`);
+            console.log(`Creating window list for panel on monitor ${panel.monitor.index}`);
             const windowList = new WindowList(panel);
             this.windowLists.push(windowList);
         });
     }
 
     _destroyWindowLists() {
+        // console.log("_destroyWindowLists()");
         // Clean up all WindowList instances
-        // console.log("Destroying windowLists");
         this.windowLists.forEach(windowList => {
             windowList.destroy();
         });
         this.windowLists = [];
     }
 
+    _recreateWindowLists() {
+        // console.log("_recreateWindowLists()");
+        this._destroyWindowLists();
+        this._createWindowLists();
+    }
+
     disable() {
+        // console.log("disable()");
         this._destroyWindowLists();
         global.dashToPanel?.disconnectObject(this);
         Main.extensionManager.disconnectObject(this);
-        
-        // console.log("PWL extension disabled");
     }
 }
