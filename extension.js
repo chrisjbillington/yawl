@@ -574,26 +574,13 @@ class WindowList {
         let targetIndex = this.windowButtons.indexOf(targetButton);
         let draggedIndex = this.windowButtons.indexOf(this._draggedButton);
         
-        if (targetIndex === -1 || draggedIndex === -1) return;
-        
         // Remove dragged button from current position
         this.windowButtons.splice(draggedIndex, 1);
-        this.windowButtonsContainer.remove_child(this._draggedButton.button);
         
         // Insert at target position (index noted before removal)
         this.windowButtons.splice(targetIndex, 0, this._draggedButton);
         
-        // Find the St widget to insert before
-        let insertBeforeWidget = null;
-        if (targetIndex < this.windowButtonsContainer.get_n_children()) {
-            insertBeforeWidget = this.windowButtonsContainer.get_child_at_index(targetIndex);
-        }
-        
-        if (insertBeforeWidget) {
-            this.windowButtonsContainer.insert_child_below(this._draggedButton.button, insertBeforeWidget);
-        } else {
-            this.windowButtonsContainer.add_child(this._draggedButton.button);
-        }
+        this.windowButtonsContainer.set_child_at_index(this._draggedButton.button, targetIndex);
     }
 
     _endDrag() {
