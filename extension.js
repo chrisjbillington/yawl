@@ -548,10 +548,13 @@ class WindowList {
     }
 
     _getButtonAtPosition(x) {
-        // If position is to the right of all buttons, target the last visible button
+        // If position is outside container, return first or last visible button
         if (x >= this.windowButtonsContainer.width) {
             let visibleButtons = this.windowButtons.filter(btn => btn.button.visible);
-            return visibleButtons[visibleButtons.length - 1] || null;
+            return visibleButtons[visibleButtons.length - 1];
+        } else if (x <= 0) {
+            let visibleButtons = this.windowButtons.filter(btn => btn.button.visible);
+            return visibleButtons[0];
         }
 
         // Find button that contains this x position
@@ -565,8 +568,8 @@ class WindowList {
                 return button;
             }
         }
-        
-        return null;
+        // Should not happen:
+        throw new Error("_getButtonAtPosition(): no button found");
     }
 
     _reorderToTarget(targetButton) {
