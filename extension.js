@@ -180,14 +180,12 @@ class WindowButton {
 
     _isFocused() {
         let focusedWindow = global.display.focus_window;
-        // Check transient windows (dialogs, etc.)
-        while (focusedWindow) {
-            if (focusedWindow === this.window) {
-                return true;
-            }
+
+        // If focused window has skip_taskbar, check windows its transient for:
+        while (focusedWindow && focusedWindow.skip_taskbar) {
             focusedWindow = focusedWindow.get_transient_for();
         }
-        return false;
+        return focusedWindow === this.window;
     }
 
     _updateIconGeometry() {
