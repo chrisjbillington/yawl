@@ -48,7 +48,7 @@ const MINIMIZED_ALPHA = 0.5;
 
 
 class WindowButton {
-    constructor(window, monitor_index) {
+    constructor(window, monitor_index, container) {
         this.window = window;
         this.windowId = window.get_id();
         this.monitor_index = monitor_index;
@@ -57,19 +57,19 @@ class WindowButton {
             style_class: 'window-button',
         });
 
-        this.hbox = new St.BoxLayout({
+        this._hbox = new St.BoxLayout({
             style_class: 'window-button-content',
         });
 
-        this.icon = new St.Bin({});
+        this._icon = new St.Bin({});
 
-        this.label = new St.Label({
+        this._label = new St.Label({
             style_class: 'window-button-label',
         });
         
-        this.hbox.add_child(this.icon);
-        this.hbox.add_child(this.label);
-        this.button.set_child(this.hbox);
+        this._hbox.add_child(this._icon);
+        this._hbox.add_child(this._label);
+        this.button.set_child(this._hbox);
 
         this.button.connect('destroy', this._onButtonDestroyed.bind(this));
         this.button.connect('clicked', this._onButtonClicked.bind(this));
@@ -106,6 +106,7 @@ class WindowButton {
         this._updateMinimized();
         this._updateStyle();
 
+        container.add_child(this.button);
     }
     
     updateVisibility() {
@@ -120,7 +121,7 @@ class WindowButton {
 
     _updateTitle() {
         if (this.button) {
-            this.label.text = this.window.get_title() || '';
+            this._label.text = this.window.get_title() || '';
         }
     }
 
@@ -128,9 +129,9 @@ class WindowButton {
         if (this.button) {
             let app = Shell.WindowTracker.get_default().get_window_app(this.window);
             if (app) {
-                this.icon.child = app.create_icon_texture(ICON_SIZE);
+                this._icon.child = app.create_icon_texture(ICON_SIZE);
             } else {
-                this.icon.child = new St.Icon({
+                this._icon.child = new St.Icon({
                     icon_name: 'application-x-executable',
                     icon_size: ICON_SIZE,
                 });
@@ -142,8 +143,8 @@ class WindowButton {
         this._updateIconGeometry();
         if (this.button) {
             let alpha = this.window.minimized ? MINIMIZED_ALPHA : 1.0;
-            this.icon.opacity = alpha * 255;
-            this.label.opacity = alpha * 255;
+            this._icon.opacity = alpha * 255;
+            this._label.opacity = alpha * 255;
         }
     }
 
@@ -228,9 +229,6 @@ class WindowButton {
 
     _onButtonDestroyed() {
         this.button = null;
-        this.hbox = null;
-        this.icon = null;
-        this.label = null;
     }
 
     destroy() {
@@ -246,30 +244,66 @@ class WindowButton {
 }
 
 
+class FavoritesButton {
+    constructor(app, container) {
+        this.button = new St.Button({
+            style_class: 'favorites-button',
+        });
+        this.button.connect('destroy', this._onButtonDestroyed.bind(this));
+        this.button.child = app.create_icon_texture(ICON_SIZE);
+        
+        // Add click handler to launch a new instance of the app
+        this.button.connect('clicked', () => {
+            app.open_new_window(-1);
+        });
+
+        container.add_child(this.button);
+    }
+
+    _onButtonDestroyed() {
+        this.button = null;
+    }
+
+    destroy() {
+        if (this.button) {
+            this.button.destroy();
+        }
+    }
+}
+
+
 class WindowList {
     constructor(panel) {
         this.panel = panel;
         this.windowButtons = [];
+        this.favoritesButtons = [];
         
-        // Create main widget to hold everything
+        // Main container widget for this panel
         this.widget = new St.BoxLayout({
+            x_expand: false,
+        });
+        // Cleanup is done when this widget is destroyed, either by us or someone else:
+        this.widget.connect('destroy', this._onWidgetDestroyed.bind(this));
+
+        // Container for window buttons
+        this.windowButtonsContainer = new St.BoxLayout({
             style_class: 'window-list-container',
             x_expand: false,
         });
         
-        this.widget.connect('destroy', this._onWidgetDestroyed.bind(this));
-
-        // Insert widget into panel's left box
-        panel._leftBox.insert_child_at_index(this.widget, -1);
-        
-        // Create container for window buttons
-        this.windowButtonsContainer = new St.BoxLayout({
+        // Container for favorites launchers:
+        this.favoritesContainer = new St.BoxLayout({
+            style_class: 'favorites-container',
             x_expand: false,
         });
         
-        // Initialize favorites
-        this.favoritesContainer = null;
-        
+        // Add both containers to the main widget in order: favorites first, then window buttons
+        this.widget.add_child(this.favoritesContainer);
+        this.widget.add_child(this.windowButtonsContainer);
+
+        // Insert main widget into panel's left box
+        panel._leftBox.insert_child_at_index(this.widget, -1);
+
         // Connect to favorites changed signal
         AppFavorites.getAppFavorites().connectObject(
             'changed',
@@ -280,7 +314,7 @@ class WindowList {
         // Create initial favorites
         this._createFavorites();
         
-        // Watch for window creation:
+        // Watch for window creation, windows moving monitor, or workspace:
         global.display.connectObject(
             'window-created',
             this._onWindowCreated.bind(this),
@@ -290,14 +324,13 @@ class WindowList {
             this._onWindowLeftMonitor.bind(this),
             this,
         );
-        
         global.window_manager.connectObject(
             'switch-workspace',
             this._onSwitchWorkspace.bind(this),
             this,
         )
 
-        // Initialize with existing windows
+        // Create initial window buttons:
         global.get_window_actors().forEach(window => {
             this._onWindowCreated(global.display, window.meta_window);
         });
@@ -332,13 +365,12 @@ class WindowList {
         )
 
         // Create WindowButton and add to window buttons container
-        const button = new WindowButton(window, this.panel.monitor.index);
+        const button = new WindowButton(window, this.panel.monitor.index, this.windowButtonsContainer);
         button.button.connect('scroll-event', this._onScrollEvent.bind(this));
         button.button.connect('button-press-event', this._onButtonPress.bind(this));
         button.button.connect('leave-event', this._onButtonLeave.bind(this));
         button.button.connect('enter-event', this._onButtonEnter.bind(this));
         this.windowButtons.push(button);
-        this.windowButtonsContainer.add_child(button.button);
     }
     
     _onWindowEnteredMonitor(display, monitor_index, window) {
@@ -381,7 +413,6 @@ class WindowList {
         let buttonIndex = this._getWindowButtonIndex(window);
         let button = this.windowButtons[buttonIndex];
         if (button) {
-            this.windowButtonsContainer.remove_child(button.button);
             button.destroy();
             this.windowButtons.splice(buttonIndex, 1);
         }
@@ -583,40 +614,20 @@ class WindowList {
     }
 
     _createFavorites() {
-        // Create container for favorites
-        this.favoritesContainer = new St.BoxLayout({
-            style_class: 'favorites-container',
-            x_expand: false,
-        });
-        
-        // Add both containers to the main widget in order: favorites first, then window buttons
-        this.widget.add_child(this.favoritesContainer);
-        this.widget.add_child(this.windowButtonsContainer);
-        
-        // Get favorites and create icons
+        // Create a button for each app in favorites:
         let favorites = AppFavorites.getAppFavorites().getFavorites();
         favorites.forEach(app => {
-            let button = new St.Button({
-                style_class: 'favorite-button',
-            });
-            button.child = app.create_icon_texture(ICON_SIZE);
-            
-            // Add click handler to launch a new instance of the app
-            button.connect('clicked', () => {
-                app.open_new_window(-1);
-            });
-            
-            this.favoritesContainer.add_child(button);
+            let button = new FavoritesButton(app, this.favoritesContainer);
+            this.favoritesButtons.push(button);
         });
     }
 
     _destroyFavorites() {
-        if (this.favoritesContainer) {
-            this.widget.remove_child(this.favoritesContainer);
-            this.widget.remove_child(this.windowButtonsContainer);
-            this.favoritesContainer.destroy();
-            this.favoritesContainer = null;
-        }
+        // Clean up all favorites buttons:
+        this.favoritesButtons.forEach(button => {
+            button.destroy();
+        });
+        this.favoritesButtons = [];
     }
 
     _recreateFavorites() {
@@ -645,9 +656,7 @@ class WindowList {
         });
         this.windowButtons = [];
         
-        // Remove widget from panel and destroy it
         if (this.widget) {
-            this.panel._leftBox.remove_child(this.widget);
             this.widget.destroy();
         }
     }

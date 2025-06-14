@@ -121,25 +121,25 @@
 }
 
 /* Favorite button */
-.favorite-button {
+.favorites-button {
     padding-left: 6px;
     padding-right: 6px;
 }
 
 /* Normal favorite button pseudo-states */
-.favorite-button:hover {
+.favorites-button:hover {
     background-color: rgba(255, 255, 255, 0.1);
 }
-.favorite-button:active,
-.favorite-button.dragging,
-.favorite-button.dragging:hover,
-.favorite-button.dragging:active {
+.favorites-button:active,
+.favorites-button.dragging,
+.favorites-button.dragging:hover,
+.favorites-button.dragging:active {
     background-color: rgba(255, 255, 255, 0.175);
 }
 
 /* Add a border for all dragging states */
-.favorite-button.dragging,
-.favorite-button.dragging:hover,
-.favorite-button.dragging:active {
+.favorites-button.dragging,
+.favorites-button.dragging:hover,
+.favorites-button.dragging:active {
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
