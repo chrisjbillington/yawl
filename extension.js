@@ -50,7 +50,7 @@ const MINIMIZED_ALPHA = 0.5;
 class WindowButton {
     constructor(window, monitor_index, container) {
         this.window = window;
-        this.windowId = window.get_id();
+        this.id = window.get_stable_sequence();
         this.monitor_index = monitor_index;
         
         this.button = new St.Button({
@@ -342,8 +342,8 @@ class WindowList {
     }
     
     _getWindowButtonIndex(window) {
-        const windowId = window.get_id();
-        return this.windowButtons.findIndex(btn => btn.windowId === windowId);
+        const id = window.get_stable_sequence();
+        return this.windowButtons.findIndex(btn => btn.id === id);
     }
 
     _getWindowButton(window) {
