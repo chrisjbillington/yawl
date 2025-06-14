@@ -16,7 +16,6 @@ import GLib from 'gi://GLib';
 // - [x] Update focus status when it changes
 // - [x] Update minimised status when it changes
 // - [x] Click raises or minimises
-// - [ ] Right click should get window menu (maybe not possible)
 // - [x] Middle click close
 // - [x] Scroll raises next window, no periodic boundary
 // - [x] Click and drag reorders
@@ -24,18 +23,18 @@ import GLib from 'gi://GLib';
 // - [x] Lighten on hover over and slightly more on click
 // - [x] Dim significantly if minimised
 // - [x] lightened if active window
-// - [ ] Tooltip is window title
 // - [x] Minimise/restore animation should respect the location of the window list entry
-// - [ ] Window order should survive suspend/restore and monitor hotplugging
 // - [x] Windows moved to new workspaces/monitors should go to the end of the list
-// - [ ] Super tab/Super shift-tab should tab through windows in taskbar order
-//   (probably: monitor order then taskbar order)
-// - [ ] Window list should not exceed available space in panel - buttons should shrink
 // - [x] Favourites should be launchers on the left
+// - [ ] Super tab/Super shift-tab should tab through windows in taskbar order
+// - [ ] Right click should get window menu (maybe not possible)
+// - [ ] Tooltip is window title
+// - [ ] Window order should survive suspend/restore/screen lock/monitor hotplugs
+// - [ ] Window list should not exceed available space in panel - buttons should shrink
 // - [ ] Favourites have tooltips
 // - [ ] Favourites drag-drop reorderable
 // - [ ] Favourites have a context menu for e.g. unpinning
-// - [ ] Window buttons context menu should have entry  to allow pinning to favourites
+// - [ ] Window buttons context menu should have entry to allow pinning to favourites
 
 
 const DRAG_TIMEOUT_INTERVAL_MS = 50;
@@ -49,6 +48,7 @@ const MINIMIZED_ALPHA = 0.5;
 
 class WindowButton {
     constructor(window, monitor_index, container) {
+        // console.log("WindowButton.constructor()")
         this.window = window;
         this.id = window.get_stable_sequence();
         this.monitor_index = monitor_index;
@@ -110,6 +110,7 @@ class WindowButton {
     }
     
     updateVisibility() {
+        // console.log("WindowButton.updateVisibility()")
         if (this.button) {
             let workspace = global.workspace_manager.get_active_workspace();
             let visible = !this.window.skip_taskbar &&
@@ -120,12 +121,14 @@ class WindowButton {
     }
 
     _updateTitle() {
+        // console.log("WindowButton._updateTitle()")
         if (this.button) {
             this._label.text = this.window.get_title() || '';
         }
     }
 
     _updateIcon() {
+        // console.log("WindowButton._updateIcon()")
         if (this.button) {
             let app = Shell.WindowTracker.get_default().get_window_app(this.window);
             if (app) {
@@ -140,6 +143,7 @@ class WindowButton {
     }
 
     _updateMinimized() {
+        // console.log("WindowButton._updateMinimized()")
         this._updateIconGeometry();
         if (this.button) {
             let alpha = this.window.minimized ? MINIMIZED_ALPHA : 1.0;
@@ -149,6 +153,7 @@ class WindowButton {
     }
 
     _updateStyle() {
+        // console.log("WindowButton._updateStyle()")
         if (!this.button) return;
         
         // Remove all state classes
@@ -167,6 +172,7 @@ class WindowButton {
     }
     
     setDragging(isDragging) {
+        // console.log("WindowButton.setDragging()")
         if (!this.button) return;
         if (isDragging) {
             this.button.add_style_class_name('dragging');
@@ -179,6 +185,7 @@ class WindowButton {
     }
 
     _isFocused() {
+        // console.log("WindowButton._isFocused()")
         let focusedWindow = global.display.focus_window;
 
         // If focused window has skip_taskbar, check windows it is transient for:
@@ -189,7 +196,8 @@ class WindowButton {
     }
 
     _updateIconGeometry() {
-        if (this.button && this.button.visible) {
+        // console.log("WindowButton._updateIconGeometry()")
+        if (this.button && this.button.visible && this.button.get_stage()) {
             let rect = new Mtk.Rectangle();
             [rect.x, rect.y] = this.button.get_transformed_position();
             [rect.width, rect.height] = this.button.get_transformed_size();
@@ -198,6 +206,7 @@ class WindowButton {
     }
 
     _onButtonPress(actor, event) {
+        // console.log("WindowButton._onButtonPress()")
         let button = event.get_button();
         if (button === 2) { // Middle mouse button
             this.window.delete(global.get_current_time());
@@ -207,6 +216,7 @@ class WindowButton {
     }
 
     _onButtonClicked() {
+        // console.log("WindowButton._onButtonClicked()")
         if (this._isFocused()) {
             // Window is already focused, minimize it
             this.window.minimize();
@@ -217,10 +227,12 @@ class WindowButton {
     }
 
     _onButtonDestroyed() {
+        // console.log("WindowButton._onButtonDestroyed()");
         this.button = null;
     }
 
     destroy() {
+        // console.log("WindowButton.destroy()")
         // Clear icon geometry to disable minimize animations
         if (this.window) {
             this.window.set_icon_geometry(null);
@@ -264,6 +276,7 @@ class FavoritesButton {
 
 class WindowList {
     constructor(panel) {
+        // console.log("WindowList.constructor()")
         this.panel = panel;
         this.windowButtons = [];
         this.favoritesButtons = [];
@@ -332,11 +345,13 @@ class WindowList {
     }
     
     _getWindowButtonIndex(window) {
+        // console.log("WindowList._getWindowButtonIndex()")
         const id = window.get_stable_sequence();
         return this.windowButtons.findIndex(btn => btn.id === id);
     }
 
     _getWindowButton(window) {
+        // console.log("WindowList._getWindowButton()")
         const buttonIndex = this._getWindowButtonIndex(window)
         if (buttonIndex !== -1) {
             return this.windowButtons[buttonIndex];
@@ -345,6 +360,7 @@ class WindowList {
     }
 
     _onWindowCreated(display, window) {
+        // console.log("WindowList._onWindowCreated()")
         // Monitor signals of interest:
         window.connectObject(
             'unmanaged',
@@ -364,6 +380,7 @@ class WindowList {
     }
     
     _onWindowEnteredMonitor(display, monitor_index, window) {
+        // console.log("WindowList._onWindowEnteredMonitor()")
         let button = this._getWindowButton(window);
         if (button) {
             // Move to the end of the list:
@@ -375,6 +392,7 @@ class WindowList {
     }
 
     _onWindowLeftMonitor(display, monitor_index, window) {
+        // console.log("WindowList._onWindowLeftMonitor()")
         let button = this._getWindowButton(window);
         if (button) {
             button.updateVisibility();
@@ -382,6 +400,7 @@ class WindowList {
     }
     
     _onWindowWorkspaceChanged(window) {
+        // console.log("WindowList._onWindowWorkspaceChanged()")
         let button = this._getWindowButton(window);
         if (button) {
             // Move to the end of the list:
@@ -393,12 +412,14 @@ class WindowList {
     }
 
     _onSwitchWorkspace() {
+        // console.log("WindowList._onWindowWorkspaceChanged()")
         this.windowButtons.forEach(button => {
             button.updateVisibility();
         });
     }
 
     _onWindowUnmanaged(window) {
+        // console.log("WindowList._onWindowUnmanaged()")
         // Find and remove the corresponding WindowButton
         let buttonIndex = this._getWindowButtonIndex(window);
         let button = this.windowButtons[buttonIndex];
@@ -409,6 +430,7 @@ class WindowList {
     }
     
     _moveButtonToEnd(button) {
+        // console.log("WindowList._moveButtonToEnd()")
         // Move in window buttons container
         this.windowButtonsContainer.remove_child(button.button);
         this.windowButtonsContainer.add_child(button.button);
@@ -420,6 +442,7 @@ class WindowList {
     }
 
     _onScrollEvent(actor, event) {
+        // console.log("WindowList._onScrollEvent()")
         let direction = event.get_scroll_direction();
         if (direction === 0) { // Up
             this._focusPreviousWindow();
@@ -430,6 +453,7 @@ class WindowList {
     }
 
     _focusNextWindow() {
+        // console.log("WindowList._focusNextWindow()")
         let visibleButtons = this.windowButtons.filter(btn => btn.button.visible);
         if (visibleButtons.length === 0) return;
 
@@ -449,6 +473,7 @@ class WindowList {
     }
 
     _focusPreviousWindow() {
+        // console.log("WindowList._focusPreviousWindow()")
         let visibleButtons = this.windowButtons.filter(btn => btn.button.visible);
         if (visibleButtons.length === 0) return;
 
@@ -468,12 +493,14 @@ class WindowList {
     }
 
     _leftMouseButtonIsDown() {
+        // console.log("WindowList._leftMouseButtonIsDown()")
         // Check global button state - returns [x, y, modifier_mask]
         let [, , modifierMask] = global.get_pointer();
         return !!(modifierMask & Clutter.ModifierType.BUTTON1_MASK);
     }
 
     _onButtonPress(actor, event) {
+        // console.log("WindowList._onButtonPress()")
         // End any existing drag to prevent overlapping
         if (this._dragInProgress) {
             this._endDrag();
@@ -481,6 +508,7 @@ class WindowList {
     }
 
     _onButtonEnter(actor, event) {
+        // console.log("WindowList._onButtonEnter()")
         // If the user is moving their mouse between buttons during a drag, do an update
         // of the drag state immediately instead of waiting for the timeout, to avoid
         // flicker
@@ -491,6 +519,7 @@ class WindowList {
     }
 
     _onButtonLeave(actor, event) {
+        // console.log("WindowList._onButtonLeave()")
         if (this._leftMouseButtonIsDown() && !this._dragInProgress) {
             // Start drag
             let button = this.windowButtons.find(btn => btn.button === actor);
@@ -511,6 +540,7 @@ class WindowList {
     }
 
     _onDragTimeout() {
+        // console.log("WindowList._onDragTimeout()")
         if (!this._leftMouseButtonIsDown()) {
             this._endDrag();
             return;
@@ -538,6 +568,7 @@ class WindowList {
     }
 
     _getButtonAtPosition(x) {
+        // console.log("WindowList._getButtonAtPosition()")
         // If position is outside container, return first or last visible button
         if (x >= this.windowButtonsContainer.width) {
             let visibleButtons = this.windowButtons.filter(btn => btn.button.visible);
@@ -563,9 +594,9 @@ class WindowList {
     }
 
     _reorderToTarget(targetButton) {
-        // Note the target index before removal (as specified)
-        let targetIndex = this.windowButtons.indexOf(targetButton);
-        let draggedIndex = this.windowButtons.indexOf(this._draggedButton);
+        // console.log("WindowList._reorderToTarget()")
+        let targetIndex = this.windowButtonsContainer.get_children().indexOf(targetButton.button);
+        let draggedIndex = this.windowButtonsContainer.get_children().indexOf(this._draggedButton.button);
         
         // Remove dragged button from current position
         this.windowButtons.splice(draggedIndex, 1);
@@ -577,7 +608,7 @@ class WindowList {
     }
 
     _endDrag() {
-        
+        // console.log("WindowList._endDrag()")
         // Clear dragging state
         if (this._draggedButton) {
             this._draggedButton.setDragging(false);
@@ -594,6 +625,7 @@ class WindowList {
     }
 
     _createFavorites() {
+        // console.log("WindowList._createFavorites()")
         // Create a button for each app in favorites:
         let favorites = AppFavorites.getAppFavorites().getFavorites();
         favorites.forEach(app => {
@@ -603,6 +635,7 @@ class WindowList {
     }
 
     _destroyFavorites() {
+        // console.log("WindowList._destroyFavorites()")
         // Clean up all favorites buttons:
         this.favoritesButtons.forEach(button => {
             button.destroy();
@@ -611,15 +644,18 @@ class WindowList {
     }
 
     _recreateFavorites() {
+        // console.log("WindowList._recreateFavorites()")
         this._destroyFavorites();
         this._createFavorites();
     }
 
     _onWidgetDestroyed() {
+        // console.log("WindowList._onWidgetDestroyed()")
         this.widget = null;
     }
 
     destroy() {
+        // console.log("WindowList.destroy()")
         global.display.disconnectObject(this);
         global.window_manager.disconnectObject(this);
         AppFavorites.getAppFavorites().disconnectObject(this);
@@ -630,9 +666,10 @@ class WindowList {
         // Clean up favorites
         this._destroyFavorites();
         
-        // Clean up all window buttons
-        this.windowButtons.forEach(windowButton => {
-            windowButton.destroy();
+        // Clean up all window buttons and disconnect from their windows
+        this.windowButtons.forEach(button => {
+            button.destroy();
+            button.window.disconnectObject(this);
         });
         this.windowButtons = [];
         
@@ -645,10 +682,12 @@ class WindowList {
 
 export default class PanelWindowListExtension extends Extension {
     constructor(metadata) {
+        // console.log("constructor()")
         super(metadata);
     }
 
     enable() {
+        // console.log("enable()")
         this.windowLists = [];
         
         // Watch for extensions being enabled and disabled:
@@ -667,6 +706,7 @@ export default class PanelWindowListExtension extends Extension {
     }
 
     _onExtensionStateChanged(manager, extension) {
+        // console.log("_onExtensionStateChanged()")
         // Dash to panel can be reset by GNOME shell calling its disable() and enable()
         // methods, without notifying us at all. GNOME shell does this whenever an
         // extension that was enabled before Dash to Panel was, is disabled. So we
@@ -685,6 +725,7 @@ export default class PanelWindowListExtension extends Extension {
     }
 
     _connectToDashToPanel() {
+        // console.log("_connectToDashToPanel()")
         this._dashToPanel = global.dashToPanel;
         this._dashToPanel.connectObject(
             'panels-created',
@@ -695,17 +736,20 @@ export default class PanelWindowListExtension extends Extension {
     }
 
     _disconnectFromDashToPanel() {
+        // console.log("_disconnectFromDashToPanel()")
         this._destroyWindowLists();
         this._dashToPanel.disconnectObject(this);
         this._dashToPanel = null;
     }
 
     _reconnectToDashToPanel() {
+        // console.log("_reconnectToDashToPanel()")
         this._disconnectFromDashToPanel();
         this._connectToDashToPanel();
     }
 
     _createWindowLists() {
+        // console.log("_createWindowLists()")
         // Create new window lists for each panel:
         global.dashToPanel.panels.forEach(panel => {
             const windowList = new WindowList(panel);
@@ -714,6 +758,7 @@ export default class PanelWindowListExtension extends Extension {
     }
 
     _destroyWindowLists() {
+        // console.log("_destroyWindowLists()")
         // Clean up all WindowList instances
         this.windowLists.forEach(windowList => {
             windowList.destroy();
@@ -722,11 +767,13 @@ export default class PanelWindowListExtension extends Extension {
     }
 
     _recreateWindowLists() {
+        // console.log("_recreateWindowLists()")
         this._destroyWindowLists();
         this._createWindowLists();
     }
 
     disable() {
+        // console.log("disable()")
         if (this._dashToPanel) {
             this._disconnectFromDashToPanel();
         }
