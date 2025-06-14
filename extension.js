@@ -317,14 +317,14 @@ class WindowList {
         // Create initial favorites
         this._createFavorites();
         
-        // Watch for window creation, windows moving monitor, or workspace:
+        // Watch for new windows, windows moving monitor, or active workspace changing:
         global.display.connectObject(
             'window-created',
             this._onWindowCreated.bind(this),
             'window-entered-monitor',
-            this._onWindowEnteredMonitor.bind(this),
+            this._onWindowMonitorChanged.bind(this),
             'window-left-monitor',
-            this._onWindowLeftMonitor.bind(this),
+            this._onWindowMonitorChanged.bind(this),
             this,
         );
         global.window_manager.connectObject(
@@ -378,35 +378,19 @@ class WindowList {
         button.button.connect('enter-event', this._onButtonEnter.bind(this));
         this.windowButtons.push(button);
     }
-    
-    _onWindowEnteredMonitor(display, monitor_index, window) {
-        // console.log("WindowList._onWindowEnteredMonitor()")
+
+    _onWindowMonitorChanged(display, monitor_index, window) {
+        // console.log("WindowList._onWindowMonitorChanged()")
         let button = this._getWindowButton(window);
         if (button) {
-            // Move to the end of the list:
-            if (ISOLATE_MONITORS) {
-                this._moveButtonToEnd(button);
-            }
             button.updateVisibility();
         }
     }
 
-    _onWindowLeftMonitor(display, monitor_index, window) {
-        // console.log("WindowList._onWindowLeftMonitor()")
-        let button = this._getWindowButton(window);
-        if (button) {
-            button.updateVisibility();
-        }
-    }
-    
     _onWindowWorkspaceChanged(window) {
         // console.log("WindowList._onWindowWorkspaceChanged()")
         let button = this._getWindowButton(window);
         if (button) {
-            // Move to the end of the list:
-            if (ISOLATE_WORKSPACES) {
-                this._moveButtonToEnd(button);
-            }
             button.updateVisibility();
         }
     }
@@ -429,18 +413,6 @@ class WindowList {
         }
     }
     
-    _moveButtonToEnd(button) {
-        // console.log("WindowList._moveButtonToEnd()")
-        // Move in window buttons container
-        this.windowButtonsContainer.remove_child(button.button);
-        this.windowButtonsContainer.add_child(button.button);
-        
-        // Move in array to keep in sync
-        let index = this.windowButtons.indexOf(button);
-        this.windowButtons.splice(index, 1);
-        this.windowButtons.push(button);
-    }
-
     _onScrollEvent(actor, event) {
         // console.log("WindowList._onScrollEvent()")
         let direction = event.get_scroll_direction();
