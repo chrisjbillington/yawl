@@ -36,8 +36,9 @@ export class WindowListManager {
     // it at startup, in order to best-as-possible preserve the ordering across screen
     // locks, suspends, and extensions being disabled and enabled.
 
-    constructor() {
+    constructor(settings) {
         this.events = new EventEmitter();
+        this.settings = settings;
         // Ordered array of windows, which the order of window buttons in each window
         // list is kept in sync with.
         this._windows = [];
@@ -55,7 +56,7 @@ export class WindowListManager {
         // extension after all window lists have been created
 
         // Saved window order as a list of windowIds:
-        const savedWindowIDs = [] // TODO load from gsettings:
+        const savedWindowIDs = this.settings.get_value('window-order').deep_unpack();
         // Convert to map:
         const savedIndices = new Map(savedWindowIDs.map((windowId, ix) => [windowId, ix]));
         // Sort windows according to saved order, or put them at the end if not present:
@@ -97,17 +98,15 @@ export class WindowListManager {
     }
 
     destroy() {
-        // TODO save this to gsettings:
+        // Save window order to gsettings:
         const order = this._windows.map(window => getWindowId(window));
+        this.settings.set_value('window-order', new GLib.Variant('ai', order));
 
         // Disconnect signals
         global.display.disconnectObject(this);
         this._windows.forEach(window => {
             window.disconnectObject(this);
         });
-
-        // Destroy event emitter to ensure it doesn't hold references to window lists:
-        this.events.destroy();
     }
 }
 
@@ -164,7 +163,7 @@ export class WindowList {
         this._dragTimeoutId = 0;
     }
 
-    _onWindowAppended(window) {
+    _onWindowAppended(emitter, window) {
         const button = new WindowButton(window, this.panel.monitor.index);
         button.button.connect('scroll-event', this._onScrollEvent.bind(this));
         button.button.connect('button-press-event', this._onButtonPress.bind(this));
@@ -174,13 +173,13 @@ export class WindowList {
         this.windowButtons.push(button);
     }
 
-    _onWindowRemoved(index) {
+    _onWindowRemoved(emitter, index) {
         let button = this.windowButtons[index]
         button.destroy();
         this.windowButtons.splice(index, 1);
     }
 
-    _onWindowMoved(src_index, dst_index) {
+    _onWindowMoved(emitter, src_index, dst_index) {
         let button = this.windowButtons[src_index]
         this.windowButtonsContainer.set_child_at_index(button.button, dst_index);
         this.windowButtons.splice(src_index, 1);
@@ -353,7 +352,7 @@ export class WindowList {
 
     destroy() {
         AppFavorites.getAppFavorites().disconnectObject(this);
-        this.manager.disconnectObject(this);
+        this.manager.events.disconnectObject(this);
         this._endDrag();
         
         this._destroyFavorites();

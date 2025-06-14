@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.panel-window-list" path="/org/gnome/shell/extensions/panel-window-list/">
+    <key name="window-order" type="ai">
+      <default>[]</default>
+      <summary>Window order</summary>
+      <description>Saved order of windows as stable sequence IDs</description>
+    </key>
+  </schema>
+</schemalist>

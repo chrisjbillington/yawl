@@ -20,16 +20,18 @@ import {WindowList, WindowListManager} from './windowList.js';
 // - [x] Minimise/restore animation should respect the location of the window list entry
 // - [x] Windows moved to new workspaces/monitors should go to the end of the list
 // - [x] Favourites should be launchers on the left
+// - [x] Window order should survive suspend/restore/screen lock/monitor hotplugs
 // - [ ] Super tab/Super shift-tab should tab through windows in taskbar order
 // - [ ] Right click should get window menu (maybe not possible)
 // - [ ] Tooltip is window title
-// - [ ] Window order should survive suspend/restore/screen lock/monitor hotplugs
 // - [ ] Window list should not exceed available space in panel - buttons should shrink
 // - [ ] Favourites have tooltips
 // - [ ] Favourites drag-drop reorderable
 // - [ ] Favourites have a context menu for e.g. unpinning
 // - [ ] Window buttons context menu should have entry to allow pinning to favourites
 
+
+const GSETTINGS_PATH = 'org.gnome.shell.extensions.panel-window-list';
 
 export default class PanelWindowListExtension extends Extension {
     constructor(metadata) {
@@ -103,7 +105,8 @@ export default class PanelWindowListExtension extends Extension {
     _createWindowLists() {
         // console.log("_createWindowLists()")
         // Create new window lists for each panel:
-        this.windowListManager = new WindowListManager()
+        const settings = this.getSettings(GSETTINGS_PATH);
+        this.windowListManager = new WindowListManager(settings)
         global.dashToPanel.panels.forEach(panel => {
             const windowList = new WindowList(panel, this.windowListManager);
             this.windowLists.push(windowList);
