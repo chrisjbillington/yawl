@@ -189,7 +189,7 @@ class WindowButton {
     }
 
     _updateIconGeometry() {
-        if (this.button.visible) {
+        if (this.button && this.button.visible) {
             let rect = new Mtk.Rectangle();
             [rect.x, rect.y] = this.button.get_transformed_position();
             [rect.width, rect.height] = this.button.get_transformed_size();
@@ -224,6 +224,7 @@ class WindowButton {
         // Clear icon geometry to disable minimize animations
         if (this.window) {
             this.window.set_icon_geometry(null);
+            this.window.disconnectObject(this);
         }
         
         if (this.button) {
