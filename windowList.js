@@ -2,14 +2,120 @@ import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import * as AppFavorites from 'resource:///org/gnome/shell/ui/appFavorites.js';
+import { EventEmitter } from 'resource:///org/gnome/shell/misc/signals.js'
 import {WindowButton} from './windowButton.js';
 import {FavoritesButton} from './favoritesButton.js';
 
 const DRAG_TIMEOUT_INTERVAL_MS = 50;
 
+function getWindowId(window) {
+    // We use mutter's stable sequence numbers to identify windows
+    return window.get_stable_sequence();
+}
+
+export class WindowListManager {
+    // Class to coordinate between window lists on different monitors to ensure the
+    // order of window buttons is kept in sync. WindowList instances connect to the
+    // `events` object which emits the following signals:
+    //
+    // - window-appended (window): a new window has been created and each WindowList
+    //   should append a new window button to the end of its list
+    //
+    // - window-removed (index): a window has been closed and each WindowList should
+    //   remove the corresponding windowButton from its list
+    // 
+    // - window-moved (src_index, dst_index) a window has been moved in the ordering,
+    //   and each windowList should move the window button at src_index to dst_index
+    //
+    // When a WindowList wants to reorder window buttons due a drag and drop operation,
+    // it should call WindowListManager.moveWindow(src_index, dst_index), and then
+    // respond to the emitted signal, in order to ensure the move is synced across all
+    // WindowList.
+    //
+    // This class saves the window button order to gsettings upon destruction and loads
+    // it at startup, in order to best-as-possible preserve the ordering across screen
+    // locks, suspends, and extensions being disabled and enabled.
+
+    constructor() {
+        this.events = new EventEmitter();
+        // Ordered array of windows, which the order of window buttons in each window
+        // list is kept in sync with.
+        this._windows = [];
+
+        global.display.connectObject(
+            'window-created',
+            this._onWindowCreated.bind(this),
+            this,
+        )
+    }
+
+    get_initial_windows() {
+        // Get all currently existing windows, populate our list and emit events for all
+        // window lists to create their buttons. This should be called by the main
+        // extension after all window lists have been created
+
+        // Saved window order as a list of windowIds:
+        const savedWindowIDs = [] // TODO load from gsettings:
+        // Convert to map:
+        const savedIndices = new Map(savedWindowIDs.map((windowId, ix) => [windowId, ix]));
+        // Sort windows according to saved order, or put them at the end if not present:
+        const windowActors = global.get_window_actors()
+        windowActors.sort((a, b) => {
+            const aIndex = savedIndices.get(getWindowId(a.meta_window)) ?? Infinity;
+            const bIndex = savedIndices.get(getWindowId(b.meta_window)) ?? Infinity;
+            return aIndex - bIndex;
+        });
+        windowActors.forEach(windowActor => {
+            this._onWindowCreated(global.display, windowActor.meta_window);
+        });
+    }
+
+    _onWindowCreated(display, window) {
+        window.connectObject(
+            'unmanaged',
+            this._onWindowUnmanaged.bind(this),
+            this,
+        )
+        this._windows.push(window);
+        this.events.emit('window-appended', window);
+    }
+
+    _onWindowUnmanaged(window) {
+        const index = this._windows.indexOf(window);
+        this._windows.splice(index, 1);
+        this.events.emit('window-removed', index);
+    }
+
+    moveWindow(src_index, dst_index) {
+        if (!(src_index < this._windows.length && dst_index < this._windows.length)) {
+            throw new Error(`invalid indices ${src_index},${dst_index} (len=${this._windows.length})`);
+        };
+        const window = this._windows[src_index];
+        this._windows.splice(src_index, 1);
+        this._windows.splice(dst_index, 0, window);
+        this.events.emit('window-moved', src_index, dst_index);
+    }
+
+    destroy() {
+        // TODO save this to gsettings:
+        const order = this._windows.map(window => getWindowId(window));
+
+        // Disconnect signals
+        global.display.disconnectObject(this);
+        this._windows.forEach(window => {
+            window.disconnectObject(this);
+        });
+
+        // Destroy event emitter to ensure it doesn't hold references to window lists:
+        this.events.destroy();
+    }
+}
+
+
 export class WindowList {
-    constructor(panel) {
+    constructor(panel, manager) {
         this.panel = panel;
+        this.manager = manager;
         this.windowButtons = [];
         this.favoritesButtons = [];
         
@@ -41,87 +147,44 @@ export class WindowList {
         
         this._createFavorites();
         
-        global.display.connectObject(
-            'window-created',
-            this._onWindowCreated.bind(this),
-            'window-entered-monitor',
-            this._onWindowMonitorChanged.bind(this),
-            'window-left-monitor',
-            this._onWindowMonitorChanged.bind(this),
+        // Connect to the window list manager which will tell us about windows being
+        // added, removed, and reordered in the window list order:
+        this.manager.events.connectObject(
+            'window-appended',
+            this._onWindowAppended.bind(this),
+            'window-removed',
+            this._onWindowRemoved.bind(this),
+            'window-moved',
+            this._onWindowMoved.bind(this),
             this,
         );
-        global.window_manager.connectObject(
-            'switch-workspace',
-            this._onSwitchWorkspace.bind(this),
-            this,
-        )
 
-        global.get_window_actors().forEach(window => {
-            this._onWindowCreated(global.display, window.meta_window);
-        });
-        
         this._dragInProgress = false;
         this._draggedButton = null;
         this._dragTimeoutId = 0;
     }
-    
-    _getWindowButtonIndex(window) {
-        const id = window.get_stable_sequence();
-        return this.windowButtons.findIndex(btn => btn.id === id);
-    }
 
-    _getWindowButton(window) {
-        const buttonIndex = this._getWindowButtonIndex(window)
-        if (buttonIndex !== -1) {
-            return this.windowButtons[buttonIndex];
-        }
-        return null;
-    }
-
-    _onWindowCreated(display, window) {
-        window.connectObject(
-            'unmanaged',
-            this._onWindowUnmanaged.bind(this),
-            'workspace-changed',
-            this._onWindowWorkspaceChanged.bind(this),
-            this,
-        )
-
-        const button = new WindowButton(window, this.panel.monitor.index, this.windowButtonsContainer);
+    _onWindowAppended(window) {
+        const button = new WindowButton(window, this.panel.monitor.index);
         button.button.connect('scroll-event', this._onScrollEvent.bind(this));
         button.button.connect('button-press-event', this._onButtonPress.bind(this));
         button.button.connect('leave-event', this._onButtonLeave.bind(this));
         button.button.connect('enter-event', this._onButtonEnter.bind(this));
+        this.windowButtonsContainer.add_child(button.button);
         this.windowButtons.push(button);
     }
 
-    _onWindowMonitorChanged(display, monitor_index, window) {
-        let button = this._getWindowButton(window);
-        if (button) {
-            button.updateVisibility();
-        }
+    _onWindowRemoved(index) {
+        let button = this.windowButtons[index]
+        button.destroy();
+        this.windowButtons.splice(index, 1);
     }
 
-    _onWindowWorkspaceChanged(window) {
-        let button = this._getWindowButton(window);
-        if (button) {
-            button.updateVisibility();
-        }
-    }
-
-    _onSwitchWorkspace() {
-        this.windowButtons.forEach(button => {
-            button.updateVisibility();
-        });
-    }
-
-    _onWindowUnmanaged(window) {
-        let buttonIndex = this._getWindowButtonIndex(window);
-        let button = this.windowButtons[buttonIndex];
-        if (button) {
-            button.destroy();
-            this.windowButtons.splice(buttonIndex, 1);
-        }
+    _onWindowMoved(src_index, dst_index) {
+        let button = this.windowButtons[src_index]
+        this.windowButtonsContainer.set_child_at_index(button.button, dst_index);
+        this.windowButtons.splice(src_index, 1);
+        this.windowButtons.splice(dst_index, 0, button);
     }
     
     _onScrollEvent(actor, event) {
@@ -220,7 +283,10 @@ export class WindowList {
         let targetButton = this._getButtonAtPosition(relativeX);
         
         if (targetButton && targetButton !== this._draggedButton) {
-            this._reorderToTarget(targetButton);
+            // Reorder the buttons:
+            let src_index = this.windowButtonsContainer.get_children().indexOf(this._draggedButton.button);
+            let dst_index = this.windowButtonsContainer.get_children().indexOf(targetButton.button);
+            this.manager.moveWindow(src_index, dst_index);
         }
         return GLib.SOURCE_CONTINUE;
     }
@@ -245,17 +311,6 @@ export class WindowList {
             }
         }
         throw new Error("_getButtonAtPosition(): no button found");
-    }
-
-    _reorderToTarget(targetButton) {
-        let targetIndex = this.windowButtonsContainer.get_children().indexOf(targetButton.button);
-        let draggedIndex = this.windowButtonsContainer.get_children().indexOf(this._draggedButton.button);
-        
-        this.windowButtons.splice(draggedIndex, 1);
-        
-        this.windowButtons.splice(targetIndex, 0, this._draggedButton);
-        
-        this.windowButtonsContainer.set_child_at_index(this._draggedButton.button, targetIndex);
     }
 
     _endDrag() {
@@ -297,17 +352,14 @@ export class WindowList {
     }
 
     destroy() {
-        global.display.disconnectObject(this);
-        global.window_manager.disconnectObject(this);
         AppFavorites.getAppFavorites().disconnectObject(this);
-        
+        this.manager.disconnectObject(this);
         this._endDrag();
         
         this._destroyFavorites();
         
         this.windowButtons.forEach(button => {
             button.destroy();
-            button.window.disconnectObject(this);
         });
         this.windowButtons = [];
         

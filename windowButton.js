@@ -8,9 +8,8 @@ const ICON_SIZE = 18;
 const MINIMIZED_ALPHA = 0.5;
 
 export class WindowButton {
-    constructor(window, monitor_index, container) {
+    constructor(window, monitor_index) {
         this.window = window;
-        this.id = window.get_stable_sequence();
         this.monitor_index = monitor_index;
         
         this.button = new St.Button({
@@ -38,10 +37,21 @@ export class WindowButton {
         global.display.connectObject(
             'notify::focus-window',
             this._updateStyle.bind(this),
+            'window-entered-monitor',
+            this.updateVisibility.bind(this),
+            'window-left-monitor',
+            this.updateVisibility.bind(this),
             this,
         );
+        global.window_manager.connectObject(
+            'switch-workspace',
+            this.updateVisibility.bind(this),
+            this,
+        )
 
         this.window.connectObject(
+            'workspace-changed',
+            this.updateVisibility.bind(this),
             'notify::skip-taskbar',
             this.updateVisibility.bind(this),
             'notify::title',
@@ -64,8 +74,6 @@ export class WindowButton {
         this.updateVisibility();
         this._updateMinimized();
         this._updateStyle();
-
-        container.add_child(this.button);
     }
     
     updateVisibility() {
@@ -173,13 +181,12 @@ export class WindowButton {
     }
 
     destroy() {
-        if (this.window) {
-            this.window.set_icon_geometry(null);
-            this.window.disconnectObject(this);
-        }
-        
         if (this.button) {
             this.button.destroy();
         }
+        this.window.set_icon_geometry(null);
+        this.window.disconnectObject(this);
+        global.display.disconnectObject(this);
+        global.window_manager.disconnectObject(this);
     }
 }
