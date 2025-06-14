@@ -181,7 +181,7 @@ class WindowButton {
     _isFocused() {
         let focusedWindow = global.display.focus_window;
 
-        // If focused window has skip_taskbar, check windows its transient for:
+        // If focused window has skip_taskbar, check windows it is transient for:
         while (focusedWindow && focusedWindow.skip_taskbar) {
             focusedWindow = focusedWindow.get_transient_for();
         }
@@ -189,21 +189,12 @@ class WindowButton {
     }
 
     _updateIconGeometry() {
-        // Ensure button is on stage before calculating geometry
-        if (!this.button || this.button.get_stage() == null) {
-            return;
+        if (this.button.visible) {
+            let rect = new Mtk.Rectangle();
+            [rect.x, rect.y] = this.button.get_transformed_position();
+            [rect.width, rect.height] = this.button.get_transformed_size();
+            this.window.set_icon_geometry(rect);   
         }
-
-        // Only set icon geometry if the window is on the same monitor as this button
-        if (this.window.get_monitor() !== this.monitor_index) {
-            return;
-        }
-
-        let rect = new Mtk.Rectangle();
-        [rect.x, rect.y] = this.button.get_transformed_position();
-        [rect.width, rect.height] = this.button.get_transformed_size();
-        
-        this.window.set_icon_geometry(rect);
     }
 
     _onButtonPress(actor, event) {
