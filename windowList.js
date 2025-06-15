@@ -270,7 +270,6 @@ export class WindowList {
         const index = this._windowButtonsContainer.get_children().indexOf(widget);
         const button = this._windowButtons[index]
         button.setDragging(true);
-        this._onDragUpdate(emitter, widget, x, y);
     }
 
     _onDragUpdate(emitter, widget, x, y) {
@@ -283,7 +282,6 @@ export class WindowList {
     }
 
     _onDragEnded(emitter, widget, x, y) {
-        this._onDragUpdate(emitter, widget, x, y);
         const index = this._windowButtonsContainer.get_children().indexOf(widget);
         const button = this._windowButtons[index]
         button.setDragging(false);

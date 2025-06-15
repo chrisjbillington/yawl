@@ -20,6 +20,26 @@ function getMouseState() {
 
 
 export class DragDropManager {
+    // Class to manage drag-drop operations for widgets registered with it. Callers
+    // should call registerWidget() with the widgets that are drag-droppable within a
+    // group (unrelated groups of widgets should use separate DragDropManagers). Then
+    // callers should connect to the following signals emitted by
+    // DragDropManager.events:
+    //
+    // - drag-started (widget, x, y): the given widget has started a drag operation, the
+    //   mouse is currently at coordinates x,y. This event will immediately be followed
+    //   by a drag-update event with the same x,y coordinates, so there is no need to
+    //   duplicate updates related to mouse movement if they are performed in the
+    //   handler for drag-update
+    //
+    // - drag-update (widget, x, y): emitted every 50ms whilst a drag is in progress,
+    //   with the widget being dragged, and the current mouse coordinates.
+    //
+    // - drag-ended (widget, x, y): emitted when a drag operation has completed. This
+    //   event will be immediately preceded by a drag-update event with the same x,y
+    //   coordinates, so there is no need to duplicate updates related to mouse movement
+    //   if they are already performed in the handler for drag-update.
+
     constructor() {
       this._state = DRAG_IDLE;
       this._draggedWidget = null;
@@ -204,6 +224,7 @@ export class DragDropManager {
         )
         const [x, y] = getMouseState();
         this.events.emit('drag-started', this._draggedWidget, x, y);
+        this.events.emit('drag-update', this._draggedWidget, x, y);
     }
 
     _onDragTimeout() {
@@ -232,6 +253,7 @@ export class DragDropManager {
 
         // Send end event to group owner:
         const [x, y] = getMouseState();
+        this.events.emit('drag-update', this._draggedWidget, x, y);
         this.events.emit('drag-ended', this._draggedWidget, x, y);
         this._draggedWidget = null;
     }
