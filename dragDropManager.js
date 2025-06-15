@@ -74,15 +74,15 @@ export class DragDropManager {
     }
 
     startDrag(widget) {
-        this._startDrag(widget);
+        if (this._state === DRAG_ACTIVE) {
+            throw new Error("Drag already active");
+        }
         this._state = DRAG_ACTIVE;
+        this._startDrag(widget);
     }
 
     _startDrag(widget) {
         // console.log("DragDropManager.startDrag()");
-        if (this._state === DRAG_ACTIVE) {
-            throw new Error("Drag already active");
-        }
         this._draggedWidget = widget;
         this._timeoutId = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT,
@@ -96,16 +96,16 @@ export class DragDropManager {
     endDrag() {
         // console.log("DragDropManager.endDrag()");
         if (this._state === DRAG_ACTIVE) {
-            this._endDrag(false); // avoid recursion if is called from an update handler
+            // Set state before calling _endDrag so that any triggered calls to
+            // endDrag() don't recurse
             this._state = DRAG_IDLE;
+            // send_final_update false to avoid recursion if is called from an update
+            // handler
+            this._endDrag(false);
         }
     }
 
     _endDrag(send_final_update) {
-        // console.log("DragDropManager._endDrag()");
-        if (this._state !== DRAG_ACTIVE) {
-            throw new Error("Drag not active");
-        }        
         // Stop timeout:
         GLib.source_remove(this._timeoutId);
         this._timeoutId = 0;
@@ -138,9 +138,9 @@ export class DragDropManager {
                 // This implies there was a mouse release that our timeout callback
                 // missed. End the drag and arm a new one, which is what would have
                 // happened had we detected it with the callback.
-                this._endDrag(true);
                 this._draggedWidget = widget;
                 this._state = DRAG_ARMED;
+                this._endDrag(true);
                 break;
             default:
                 throw new Error(`invalid drag state ${this._state}`);
@@ -164,8 +164,8 @@ export class DragDropManager {
                 break;
             case DRAG_ACTIVE:
                 // End
-                this._endDrag(true);
                 this._state = DRAG_IDLE;
+                this._endDrag(true);
                 break;
             default:
                 throw new Error(`invalid drag state ${this._state}`);
@@ -181,8 +181,8 @@ export class DragDropManager {
             case DRAG_ARMED:
                 // If mouse leaves whilst left mouse button is pressed (implied by ARMED
                 // state), start a drag operation:
-                this._startDrag(this._draggedWidget);
                 this._state = DRAG_ACTIVE;
+                this._startDrag(this._draggedWidget);
                 break;
             case DRAG_ACTIVE:
                 // Nothing to do
@@ -233,8 +233,8 @@ export class DragDropManager {
                 break;
             case DRAG_ACTIVE:
                 // Cancel
-                this._endDrag(true);
                 this._state = DRAG_IDLE;
+                this._endDrag(true);
                 break;
             default:
                 throw new Error(`invalid drag state ${this._state}`);
@@ -257,8 +257,8 @@ export class DragDropManager {
                 break
             case DRAG_ACTIVE:
                 // Cancel
-                this._endDrag(true);
                 this._state = DRAG_IDLE;
+                this._endDrag(true);
                 break;
             default:
                 throw new Error(`invalid drag state ${this._state}`);
@@ -274,8 +274,8 @@ export class DragDropManager {
         }
         const [x, y, pressed] = getMouseState();
         if (!pressed) {
-            this._endDrag(true);
             this._state = DRAG_IDLE;
+            this._endDrag(true);
             return;
         }
         this.events.emit('drag-update', this._draggedWidget, x, y);
@@ -284,8 +284,6 @@ export class DragDropManager {
 
     destroy() {
         // console.log("DragDropManager.destroy()");
-        if (this._state === DRAG_ACTIVE) {
-            this._endDrag(true);
-        }
+        this.endDrag()
     }
 }

@@ -154,7 +154,8 @@ export class WindowListManager {
 
 
 class FavoritesList {
-    constructor() {
+    constructor(monitor_index) {
+        this._monitor_index = monitor_index;
         this.widget = new St.BoxLayout({
             style_class: 'favorites-container',
             x_expand: false,
@@ -166,7 +167,7 @@ class FavoritesList {
             this._recreateFavorites.bind(this),
             this,
         );
-        
+
         this._dragDropManager = new DragDropManager();
 
         this._dragDropManager.events.connectObject(
@@ -200,7 +201,7 @@ class FavoritesList {
     }
 
     _recreateFavorites() {
-        // console.log("FavoritesList._recreateFavorites()");
+        // console.log(`FavoritesList._recreateFavorites() monitor ${this._monitor_index}`);
         this._dragDropManager.endDrag();
         this._destroyFavorites();
         this._createFavorites();
@@ -248,6 +249,7 @@ class FavoritesList {
     }
 
     destroy() {
+        // console.log("FavoritesList.destroy()");
         AppFavorites.getAppFavorites().disconnectObject(this);
         this._destroyFavorites();
         this._dragDropManager.destroy();
@@ -409,13 +411,14 @@ class WindowList {
 
 export class Panel {
     constructor(panel, windowListManager) {
+        this._monitor_index = panel.monitor.index;
         this.widget = new St.BoxLayout({
             x_expand: false,
         });
         this.widget.connect('destroy', this._onWidgetDestroyed.bind(this));
 
-        this._favoritesList = new FavoritesList();
-        this._windowList = new WindowList(windowListManager,  panel.monitor.index);
+        this._favoritesList = new FavoritesList(this._monitor_index);
+        this._windowList = new WindowList(windowListManager, this._monitor_index);
         
         this.widget.add_child(this._favoritesList.widget);
         this.widget.add_child(this._windowList.widget);
