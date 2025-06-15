@@ -4,6 +4,7 @@ const ICON_SIZE = 18;
 
 export class FavoritesButton {
     constructor(app, container) {
+        // console.log("FavoritesButton.constructor()");
         this.app = app;
         this.button = new St.Button({
             style_class: 'favorites-button',
@@ -19,6 +20,7 @@ export class FavoritesButton {
     }
 
     setDragging(isDragging) {
+        // console.log("FavoritesButton.setDragging()");
         if (!this.button) return;
         if (isDragging) {
             this.button.add_style_class_name('dragging');
@@ -30,10 +32,12 @@ export class FavoritesButton {
     }
 
     _onButtonDestroyed() {
+        // console.log("FavoritesButton._onButtonDestroyed()");
         this.button = null;
     }
 
     destroy() {
+        // console.log("FavoritesButton.destroy()");
         if (this.button) {
             this.button.destroy();
         }

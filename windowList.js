@@ -164,7 +164,14 @@ class FavoritesList {
 
         AppFavorites.getAppFavorites().connectObject(
             'changed',
-            this._recreateFavorites.bind(this),
+            // Defer responding to favorites changing until idle, so we are not
+            // destroying widgets from possibly inside their own event handlers:
+            () => {
+                GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                    this._recreateFavorites();
+                    return GLib.SOURCE_REMOVE;
+                });
+            },
             this,
         );
 
@@ -241,8 +248,6 @@ class FavoritesList {
         const appId = button.app.get_id();
         const appFavorites = AppFavorites.getAppFavorites();
         const favorites = appFavorites.getFavorites();
-        // console.log(`appId is ${appId}`);
-        // console.log(`favorites[index] is ${favorites[index]}`);
         if (favorites[index] && favorites[index].get_id() !== appId) {
             appFavorites.moveFavoriteToPos(appId, index);
         }

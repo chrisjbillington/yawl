@@ -50,13 +50,15 @@ export class DragDropManager {
     // is already held.
 
     constructor() {
-      this._state = DRAG_IDLE;
-      this._draggedWidget = null;
-      this._timeoutId = 0;
-      this.events = new EventEmitter();
+        // console.log("DragDropManager.constructor()");
+        this._state = DRAG_IDLE;
+        this._draggedWidget = null;
+        this._timeoutId = 0;
+        this.events = new EventEmitter();
     }
     
     registerWidget(widget) {
+        // console.log("DragDropManager.registerWidget()");
         widget.connectObject(
             'button-press-event',
             this._onButtonPress.bind(this),
@@ -74,6 +76,7 @@ export class DragDropManager {
     }
 
     startDrag(widget) {
+        // console.log("DragDropManager.startDrag()");
         if (this._state === DRAG_ACTIVE) {
             throw new Error("Drag already active");
         }
