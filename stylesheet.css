@@ -122,8 +122,11 @@
 
 /* Favorite button */
 .favorites-button {
-    padding-left: 6px;
-    padding-right: 6px;
+    border-width: 1px;
+    border-radius: 2px;
+    transition-duration: 0s;
+    padding-left: 4px;
+    padding-right: 4px;
 }
 
 /* Normal favorite button pseudo-states */

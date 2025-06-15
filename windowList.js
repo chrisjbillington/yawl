@@ -167,18 +167,32 @@ class FavoritesList {
             this,
         );
         
+        this._dragDropManager = new DragDropManager();
+
+        this._dragDropManager.events.connectObject(
+            'drag-started',
+            this._onDragStarted.bind(this),
+            'drag-update',
+            this._onDragUpdate.bind(this),
+            'drag-ended',
+            this._onDragEnded.bind(this),
+        )
+
         this._createFavorites();
     }
 
     _createFavorites() {
+        // console.log("FavoritesList._createFavorites()");
         let favorites = AppFavorites.getAppFavorites().getFavorites();
         favorites.forEach(app => {
             let button = new FavoritesButton(app, this.widget);
             this._favoritesButtons.push(button);
+            this._dragDropManager.registerWidget(button.button);
         });
     }
 
     _destroyFavorites() {
+        // console.log("FavoritesList._destroyFavorites()");
         this._favoritesButtons.forEach(button => {
             button.destroy();
         });
@@ -186,13 +200,57 @@ class FavoritesList {
     }
 
     _recreateFavorites() {
+        // console.log("FavoritesList._recreateFavorites()");
+        this._dragDropManager.endDrag();
         this._destroyFavorites();
         this._createFavorites();
+    }
+
+    _onDragStarted(emitter, widget, x, y) {
+        // console.log("FavoritesList._onDragStarted()");
+        const index = this.widget.get_children().indexOf(widget);
+        const button = this._favoritesButtons[index];
+        button.setDragging(true);
+        // Ensure we render any initial button movement right away to avoid flicker:
+        this._onDragUpdate(emitter, widget, x, y);
+    }
+
+    _onDragUpdate(emitter, widget, x, y) {
+        // console.log("FavoritesList._onDragUpdate()");
+        const src_index = this.widget.get_children().indexOf(widget);
+        // Move the dragged window button to the location closest to the cursor:
+        const dst_index = _getClosestChildIndex(this.widget, x);
+        if (dst_index !== -1 && dst_index !== src_index) {
+            // Reorder our widgets for visual feedback, but don't update system
+            // favourites until the drag has ended:
+            let button = this._favoritesButtons[src_index];
+            this.widget.set_child_at_index(button.button, dst_index);
+            this._favoritesButtons.splice(src_index, 1);
+            this._favoritesButtons.splice(dst_index, 0, button);
+        }
+    }
+
+    _onDragEnded(emitter, widget, x, y) {
+        // console.log("FavoritesList._onDragEnded()");
+        const index = this.widget.get_children().indexOf(widget);
+        const button = this._favoritesButtons[index];
+        button.setDragging(false);
+
+        // Update system favorites if it moved:
+        const appId = button.app.get_id();
+        const appFavorites = AppFavorites.getAppFavorites();
+        const favorites = appFavorites.getFavorites();
+        // console.log(`appId is ${appId}`);
+        // console.log(`favorites[index] is ${favorites[index]}`);
+        if (favorites[index] && favorites[index].get_id() !== appId) {
+            appFavorites.moveFavoriteToPos(appId, index);
+        }
     }
 
     destroy() {
         AppFavorites.getAppFavorites().disconnectObject(this);
         this._destroyFavorites();
+        this._dragDropManager.destroy();
     }
 }
 
@@ -243,13 +301,13 @@ class WindowList {
     }
 
     _onWindowRemoved(emitter, index) {
-        let button = this._windowButtons[index]
+        let button = this._windowButtons[index];
         button.destroy();
         this._windowButtons.splice(index, 1);
     }
 
     _onWindowMoved(emitter, src_index, dst_index) {
-        let button = this._windowButtons[src_index]
+        let button = this._windowButtons[src_index];
         this.widget.set_child_at_index(button.button, dst_index);
         this._windowButtons.splice(src_index, 1);
         this._windowButtons.splice(dst_index, 0, button);
@@ -307,7 +365,7 @@ class WindowList {
     _onDragStarted(emitter, widget, x, y) {
         // console.log(`WindowList._onDragStarted() monitor ${this._monitor_index}`);
         const index = this.widget.get_children().indexOf(widget);
-        const button = this._windowButtons[index]
+        const button = this._windowButtons[index];
         button.setDragging(true);
         // Ensure we render any initial button movement right away to avoid flicker:
         this._onDragUpdate(emitter, widget, x, y);
@@ -334,7 +392,7 @@ class WindowList {
     _onDragEnded(emitter, widget, x, y) {
         // console.log(`WindowList._onDragEnded() monitor ${this._monitor_index}`);
         const index = this.widget.get_children().indexOf(widget);
-        const button = this._windowButtons[index]
+        const button = this._windowButtons[index];
         button.setDragging(false);
     }
 
