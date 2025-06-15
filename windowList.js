@@ -17,17 +17,17 @@ function getWindowId(window) {
 }
 
 
-function _getClosestChildIndex(containerWidget, x) {
-    // Return the index of the visible child widget of containerWidget that is
+function _getClosestChildIndex(widget, x) {
+    // Return the index of the visible child widget of widget that is
     // horizontally closest to the given x position, or -1 if there are no visible child
     // widgets
 
-    const [x0, y0] = containerWidget.get_transformed_position();
+    const [x0, y0] = widget.get_transformed_position();
     const xrel = x - x0;
     let best_index = -1;
     let best_distance = Infinity;
     
-    containerWidget.get_children().forEach((child, index) => {
+    widget.get_children().forEach((child, index) => {
         if (child.visible) {
             const [child_left, _] =  child.get_position();
             const child_right = child_left + child.width;
@@ -153,32 +153,13 @@ export class WindowListManager {
 }
 
 
-export class WindowList {
-    constructor(panel, manager) {
-        this.panel = panel;
-        this.manager = manager;
-        this._windowButtons = [];
-        this.favoritesButtons = [];
-        
+class FavoritesList {
+    constructor() {
         this.widget = new St.BoxLayout({
-            x_expand: false,
-        });
-        this.widget.connect('destroy', this._onWidgetDestroyed.bind(this));
-
-        this._windowButtonsContainer = new St.BoxLayout({
-            style_class: 'window-list-container',
-            x_expand: false,
-        });
-        
-        this.favoritesContainer = new St.BoxLayout({
             style_class: 'favorites-container',
             x_expand: false,
         });
-        
-        this.widget.add_child(this.favoritesContainer);
-        this.widget.add_child(this._windowButtonsContainer);
-
-        panel._leftBox.insert_child_at_index(this.widget, -1);
+        this._favoritesButtons = [];
 
         AppFavorites.getAppFavorites().connectObject(
             'changed',
@@ -187,10 +168,49 @@ export class WindowList {
         );
         
         this._createFavorites();
+    }
+
+    _createFavorites() {
+        let favorites = AppFavorites.getAppFavorites().getFavorites();
+        favorites.forEach(app => {
+            let button = new FavoritesButton(app, this.widget);
+            this._favoritesButtons.push(button);
+        });
+    }
+
+    _destroyFavorites() {
+        this._favoritesButtons.forEach(button => {
+            button.destroy();
+        });
+        this._favoritesButtons = [];
+    }
+
+    _recreateFavorites() {
+        this._destroyFavorites();
+        this._createFavorites();
+    }
+
+    destroy() {
+        AppFavorites.getAppFavorites().disconnectObject(this);
+        this._destroyFavorites();
+    }
+}
+
+
+class WindowList {
+    constructor(manager, monitor_index) {
+        this._manager = manager;
+        this._monitor_index = monitor_index
+        this._windowButtons = [];
+        
+        this.widget = new St.BoxLayout({
+            style_class: 'window-list-container',
+            x_expand: false,
+        });
         
         // Connect to the window list manager which will tell us about windows being
         // added, removed, and reordered in the window list order:
-        this.manager.events.connectObject(
+        this._manager.events.connectObject(
             'window-appended',
             this._onWindowAppended.bind(this),
             'window-removed',
@@ -215,9 +235,9 @@ export class WindowList {
     }
 
     _onWindowAppended(emitter, window) {
-        const button = new WindowButton(window, this.panel.monitor.index);
+        const button = new WindowButton(window, this._monitor_index);
         button.button.connect('scroll-event', this._onScrollEvent.bind(this));
-        this._windowButtonsContainer.add_child(button.button);
+        this.widget.add_child(button.button);
         this._windowButtons.push(button);
         this._dragDropManager.registerWidget(button.button);
     }
@@ -230,14 +250,14 @@ export class WindowList {
 
     _onWindowMoved(emitter, src_index, dst_index) {
         let button = this._windowButtons[src_index]
-        this._windowButtonsContainer.set_child_at_index(button.button, dst_index);
+        this.widget.set_child_at_index(button.button, dst_index);
         this._windowButtons.splice(src_index, 1);
         this._windowButtons.splice(dst_index, 0, button);
     }
 
     _onDragTransferredToMonitor(emitted, src_index, monitor_index) {
-        // console.log(`WindowList._onDragTransferredToMonitor() monitor ${this.panel.monitor.index}`);
-        if (monitor_index === this.panel.monitor.index) {
+        // console.log(`WindowList._onDragTransferredToMonitor() monitor ${this._monitor_index}`);
+        if (monitor_index === this._monitor_index) {
             this._dragDropManager.startDrag(this._windowButtons[src_index].button)
         }
     }
@@ -285,8 +305,8 @@ export class WindowList {
     }
 
     _onDragStarted(emitter, widget, x, y) {
-        // console.log(`WindowList._onDragStarted() monitor ${this.panel.monitor.index}`);
-        const index = this._windowButtonsContainer.get_children().indexOf(widget);
+        // console.log(`WindowList._onDragStarted() monitor ${this._monitor_index}`);
+        const index = this.widget.get_children().indexOf(widget);
         const button = this._windowButtons[index]
         button.setDragging(true);
         // Ensure we render any initial button movement right away to avoid flicker:
@@ -294,48 +314,55 @@ export class WindowList {
     }
 
     _onDragUpdate(emitter, widget, x, y) {
-        // console.log(`WindowList._onDragUpdate() monitor ${this.panel.monitor.index}`);
-        const src_index = this._windowButtonsContainer.get_children().indexOf(widget);
+        // console.log(`WindowList._onDragUpdate() monitor ${this._monitor_index}`);
+        const src_index = this.widget.get_children().indexOf(widget);
         const rect = new Mtk.Rectangle({x, y, width: 1, height: 1});
         const monitor_index = global.display.get_monitor_index_for_rect(rect);
-        if (monitor_index !== this.panel.monitor.index) {
+        if (monitor_index !== this._monitor_index) {
             // Cancel the drag operation and transfer it to another monitor:
             this._dragDropManager.endDrag();
-            this.manager.transferDragToMonitor(src_index, monitor_index)
+            this._manager.transferDragToMonitor(src_index, monitor_index)
         } else {
             // Move the dragged window button to the location closest to the cursor:
-            const dst_index = _getClosestChildIndex(this._windowButtonsContainer, x);
+            const dst_index = _getClosestChildIndex(this.widget, x);
             if (dst_index !== -1 && dst_index !== src_index) {
-                this.manager.moveWindow(src_index, dst_index);
+                this._manager.moveWindow(src_index, dst_index);
             }
         }
     }
 
     _onDragEnded(emitter, widget, x, y) {
-        // console.log(`WindowList._onDragEnded() monitor ${this.panel.monitor.index}`);
-        const index = this._windowButtonsContainer.get_children().indexOf(widget);
+        // console.log(`WindowList._onDragEnded() monitor ${this._monitor_index}`);
+        const index = this.widget.get_children().indexOf(widget);
         const button = this._windowButtons[index]
         button.setDragging(false);
     }
 
-    _createFavorites() {
-        let favorites = AppFavorites.getAppFavorites().getFavorites();
-        favorites.forEach(app => {
-            let button = new FavoritesButton(app, this.favoritesContainer);
-            this.favoritesButtons.push(button);
-        });
-    }
-
-    _destroyFavorites() {
-        this.favoritesButtons.forEach(button => {
+    destroy() {
+        this._manager.events.disconnectObject(this);
+        this._windowButtons.forEach(button => {
             button.destroy();
         });
-        this.favoritesButtons = [];
+        this._windowButtons = [];
+        this._dragDropManager.destroy();
     }
+}
 
-    _recreateFavorites() {
-        this._destroyFavorites();
-        this._createFavorites();
+
+export class Panel {
+    constructor(panel, windowListManager) {
+        this.widget = new St.BoxLayout({
+            x_expand: false,
+        });
+        this.widget.connect('destroy', this._onWidgetDestroyed.bind(this));
+
+        this._favoritesList = new FavoritesList();
+        this._windowList = new WindowList(windowListManager,  panel.monitor.index);
+        
+        this.widget.add_child(this._favoritesList.widget);
+        this.widget.add_child(this._windowList.widget);
+
+        panel._leftBox.insert_child_at_index(this.widget, -1);
     }
 
     _onWidgetDestroyed() {
@@ -343,20 +370,10 @@ export class WindowList {
     }
 
     destroy() {
-        AppFavorites.getAppFavorites().disconnectObject(this);
-        this.manager.events.disconnectObject(this);
-        
-        this._destroyFavorites();
-        
-        this._windowButtons.forEach(button => {
-            button.destroy();
-        });
-        this._windowButtons = [];
-        
+        this._favoritesList.destroy();
+        this._windowList.destroy();
         if (this.widget) {
             this.widget.destroy();
         }
-
-        this._dragDropManager.destroy();
     }
 }

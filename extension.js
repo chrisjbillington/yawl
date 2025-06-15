@@ -1,6 +1,6 @@
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js'
-import {WindowList, WindowListManager} from './windowList.js';
+import {Panel, WindowListManager} from './windowList.js';
 
 // Feature checklist:
 // - [x] Draw icon
@@ -41,7 +41,7 @@ export default class PanelWindowListExtension extends Extension {
 
     enable() {
         // console.log("enable()")
-        this.windowLists = [];
+        this.panels = [];
         this.windowListManager = null;
         
         // Watch for extensions being enabled and disabled:
@@ -83,15 +83,15 @@ export default class PanelWindowListExtension extends Extension {
         this._dashToPanel = global.dashToPanel;
         this._dashToPanel.connectObject(
             'panels-created',
-            this._recreateWindowLists.bind(this),
+            this._recreatePanels.bind(this),
             this
         );
-        this._createWindowLists()
+        this._createPanels()
     }
 
     _disconnectFromDashToPanel() {
         // console.log("_disconnectFromDashToPanel()")
-        this._destroyWindowLists();
+        this._destroyPanels();
         this._dashToPanel.disconnectObject(this);
         this._dashToPanel = null;
     }
@@ -102,33 +102,33 @@ export default class PanelWindowListExtension extends Extension {
         this._connectToDashToPanel();
     }
 
-    _createWindowLists() {
-        // console.log("_createWindowLists()")
+    _createPanels() {
+        // console.log("_createPanels()")
         // Create new window lists for each panel:
         const settings = this.getSettings(GSETTINGS_PATH);
         this.windowListManager = new WindowListManager(settings)
-        global.dashToPanel.panels.forEach(panel => {
-            const windowList = new WindowList(panel, this.windowListManager);
-            this.windowLists.push(windowList);
+        global.dashToPanel.panels.forEach(dtppanel => {
+            const panel = new Panel(dtppanel, this.windowListManager);
+            this.panels.push(panel);
         });
         this.windowListManager.get_initial_windows();
     }
 
-    _destroyWindowLists() {
-        // console.log("_destroyWindowLists()")
-        // Clean up all WindowList instances
-        this.windowLists.forEach(windowList => {
-            windowList.destroy();
+    _destroyPanels() {
+        // console.log("_destroyPanels()")
+        // Clean up all Panel instances
+        this.panels.forEach(panel => {
+            panel.destroy();
         });
-        this.windowLists = [];
+        this.panels = [];
         this.windowListManager.destroy();
         this.windowListManager = null;
     }
 
-    _recreateWindowLists() {
-        // console.log("_recreateWindowLists()")
-        this._destroyWindowLists();
-        this._createWindowLists();
+    _recreatePanels() {
+        // console.log("_recreatePanels()")
+        this._destroyPanels();
+        this._createPanels();
     }
 
     disable() {
