@@ -7,6 +7,8 @@ const ISOLATE_WORKSPACES = true;
 const ICON_SIZE = 18;
 const MINIMIZED_ALPHA = 0.5;
 
+const MOUSE_BUTTON_MIDDLE = 2;
+
 export class WindowButton {
     constructor(window, monitor_index) {
         this.window = window;
@@ -161,7 +163,7 @@ export class WindowButton {
 
     _onButtonPress(actor, event) {
         let button = event.get_button();
-        if (button === 2) {
+        if (button === MOUSE_BUTTON_MIDDLE) {
             this.window.delete(global.get_current_time());
             return true;
         }

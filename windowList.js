@@ -1,12 +1,15 @@
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
+import Mtk from 'gi://Mtk';
 import * as AppFavorites from 'resource:///org/gnome/shell/ui/appFavorites.js';
 import {EventEmitter} from 'resource:///org/gnome/shell/misc/signals.js'
 import {WindowButton} from './windowButton.js';
 import {FavoritesButton} from './favoritesButton.js';
 import {DragDropManager} from './dragDropManager.js';
 
+const SCROLL_WHEEL_UP = 0;
+const SCROLL_WHEEL_DOWN = 1;
 
 function getWindowId(window) {
     // We use mutter's stable sequence numbers to identify windows
@@ -130,6 +133,12 @@ export class WindowListManager {
         this.events.emit('window-moved', src_index, dst_index);
     }
 
+    transferDragToMonitor(src_index, monitor_index) {
+        const window = this._windows[src_index];
+        window.move_to_monitor(monitor_index);
+        this.events.emit('drag-transferred-to-monitor', src_index, monitor_index);
+    }
+
     destroy() {
         // Save window order to gsettings:
         const order = this._windows.map(window => getWindowId(window));
@@ -188,6 +197,8 @@ export class WindowList {
             this._onWindowRemoved.bind(this),
             'window-moved',
             this._onWindowMoved.bind(this),
+            'drag-transferred-to-monitor',
+            this._onDragTransferredToMonitor.bind(this),
             this,
         );
 
@@ -223,12 +234,19 @@ export class WindowList {
         this._windowButtons.splice(src_index, 1);
         this._windowButtons.splice(dst_index, 0, button);
     }
-    
+
+    _onDragTransferredToMonitor(emitted, src_index, monitor_index) {
+        // console.log(`WindowList._onDragTransferredToMonitor() monitor ${this.panel.monitor.index}`);
+        if (monitor_index === this.panel.monitor.index) {
+            this._dragDropManager.startDrag(this._windowButtons[src_index].button)
+        }
+    }
+
     _onScrollEvent(actor, event) {
         let direction = event.get_scroll_direction();
-        if (direction === 0) {
+        if (direction === SCROLL_WHEEL_UP) {
             this._focusPreviousWindow();
-        } else if (direction === 1) {
+        } else if (direction === SCROLL_WHEEL_DOWN) {
             this._focusNextWindow();
         }
         return true;
@@ -267,21 +285,34 @@ export class WindowList {
     }
 
     _onDragStarted(emitter, widget, x, y) {
+        // console.log(`WindowList._onDragStarted() monitor ${this.panel.monitor.index}`);
         const index = this._windowButtonsContainer.get_children().indexOf(widget);
         const button = this._windowButtons[index]
         button.setDragging(true);
+        // Ensure we render any initial button movement right away to avoid flicker:
+        this._onDragUpdate(emitter, widget, x, y);
     }
 
     _onDragUpdate(emitter, widget, x, y) {
+        // console.log(`WindowList._onDragUpdate() monitor ${this.panel.monitor.index}`);
         const src_index = this._windowButtonsContainer.get_children().indexOf(widget);
-        const button = this._windowButtons[src_index]
-        const dst_index = _getClosestChildIndex(this._windowButtonsContainer, x);
-        if (dst_index !== -1 && dst_index !== src_index) {
-            this.manager.moveWindow(src_index, dst_index);
+        const rect = new Mtk.Rectangle({x, y, width: 1, height: 1});
+        const monitor_index = global.display.get_monitor_index_for_rect(rect);
+        if (monitor_index !== this.panel.monitor.index) {
+            // Cancel the drag operation and transfer it to another monitor:
+            this._dragDropManager.endDrag();
+            this.manager.transferDragToMonitor(src_index, monitor_index)
+        } else {
+            // Move the dragged window button to the location closest to the cursor:
+            const dst_index = _getClosestChildIndex(this._windowButtonsContainer, x);
+            if (dst_index !== -1 && dst_index !== src_index) {
+                this.manager.moveWindow(src_index, dst_index);
+            }
         }
     }
 
     _onDragEnded(emitter, widget, x, y) {
+        // console.log(`WindowList._onDragEnded() monitor ${this.panel.monitor.index}`);
         const index = this._windowButtonsContainer.get_children().indexOf(widget);
         const button = this._windowButtons[index]
         button.setDragging(false);

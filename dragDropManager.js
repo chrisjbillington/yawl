@@ -27,18 +27,27 @@ export class DragDropManager {
     // DragDropManager.events:
     //
     // - drag-started (widget, x, y): the given widget has started a drag operation, the
-    //   mouse is currently at coordinates x,y. This event will immediately be followed
-    //   by a drag-update event with the same x,y coordinates, so there is no need to
-    //   duplicate updates related to mouse movement if they are performed in the
-    //   handler for drag-update
+    //   mouse is currently at coordinates x,y.
     //
     // - drag-update (widget, x, y): emitted every 50ms whilst a drag is in progress,
     //   with the widget being dragged, and the current mouse coordinates.
     //
-    // - drag-ended (widget, x, y): emitted when a drag operation has completed. This
-    //   event will be immediately preceded by a drag-update event with the same x,y
-    //   coordinates, so there is no need to duplicate updates related to mouse movement
-    //   if they are already performed in the handler for drag-update.
+    // - drag-ended (widget, x, y): emitted when a drag operation has completed. When
+    //   triggered by mouse release, this event will be immediately preceded by a
+    //   drag-update event with the same x,y coordinates, so there is no need to
+    //   duplicate updates related to mouse movement if they are already performed in
+    //   the handler for drag-update. When triggered by the caller calling endDrag(),
+    //   there will be no such drag-update event preceding the subsequent drag-ended
+    //   event. This is to allow calling endDrag() from within a handler for drag-update
+    //   without recursing.
+    //
+    // Callers may end a drag operation at any time by calling endDrag(), which will end
+    // the drag operation and emit drag-ended (without a preceding drag-update)
+    //
+    // Callers may initiate a drag by calling startDrag(widget) (widget must have been
+    // previously registered, this is not checked). The drag will end immeidiately if
+    // the left mouse button is not held, so this only makes sense when the left button
+    // is already held.
 
     constructor() {
       this._state = DRAG_IDLE;
@@ -63,7 +72,52 @@ export class DragDropManager {
             this._onWidgetDestroyed.bind(this),
         );
     }
-    
+
+    startDrag(widget) {
+        this._startDrag(widget);
+        this._state = DRAG_ACTIVE;
+    }
+
+    _startDrag(widget) {
+        // console.log("DragDropManager.startDrag()");
+        if (this._state === DRAG_ACTIVE) {
+            throw new Error("Drag already active");
+        }
+        this._draggedWidget = widget;
+        this._timeoutId = GLib.timeout_add(
+            GLib.PRIORITY_DEFAULT,
+            DRAG_TIMEOUT_INTERVAL_MS,
+            this._onDragTimeout.bind(this),
+        )
+        const [x, y] = getMouseState();
+        this.events.emit('drag-started', this._draggedWidget, x, y);
+    }
+
+    endDrag() {
+        // console.log("DragDropManager.endDrag()");
+        if (this._state === DRAG_ACTIVE) {
+            this._endDrag(false); // avoid recursion if is called from an update handler
+            this._state = DRAG_IDLE;
+        }
+    }
+
+    _endDrag(send_final_update) {
+        // console.log("DragDropManager._endDrag()");
+        if (this._state !== DRAG_ACTIVE) {
+            throw new Error("Drag not active");
+        }        
+        // Stop timeout:
+        GLib.source_remove(this._timeoutId);
+        this._timeoutId = 0;
+
+        const [x, y] = getMouseState();
+        if (send_final_update) {
+            this.events.emit('drag-update', this._draggedWidget, x, y);
+        }
+        this.events.emit('drag-ended', this._draggedWidget, x, y);
+        this._draggedWidget = null;  
+    }
+
     _onButtonPress(widget, event) {
         // console.log("DragDropManager._onButtonPress()");
         let button = event.get_button();
@@ -84,7 +138,7 @@ export class DragDropManager {
                 // This implies there was a mouse release that our timeout callback
                 // missed. End the drag and arm a new one, which is what would have
                 // happened had we detected it with the callback.
-                this._endDrag();
+                this._endDrag(true);
                 this._draggedWidget = widget;
                 this._state = DRAG_ARMED;
                 break;
@@ -110,7 +164,7 @@ export class DragDropManager {
                 break;
             case DRAG_ACTIVE:
                 // End
-                this._endDrag();
+                this._endDrag(true);
                 this._state = DRAG_IDLE;
                 break;
             default:
@@ -127,7 +181,7 @@ export class DragDropManager {
             case DRAG_ARMED:
                 // If mouse leaves whilst left mouse button is pressed (implied by ARMED
                 // state), start a drag operation:
-                this._beginDrag();
+                this._startDrag(this._draggedWidget);
                 this._state = DRAG_ACTIVE;
                 break;
             case DRAG_ACTIVE:
@@ -149,9 +203,9 @@ export class DragDropManager {
                 // Nothing to do
                 break;
             case DRAG_ACTIVE:
-                // Send an immediate update event to the group owner so that it can
-                // reorder widgets as needed without waiting for the timeout to fire, to
-                // avoid flickering caused by e.g. hover style taking effect first
+                // Send an immediate update event so parent can reorder widgets as
+                // needed without waiting for the timeout to fire, to avoid flickering
+                // caused by e.g. hover style taking effect first
                 const [x, y] = getMouseState();
                 this.events.emit('drag-update', this._draggedWidget, x, y);
                 break;
@@ -179,7 +233,7 @@ export class DragDropManager {
                 break;
             case DRAG_ACTIVE:
                 // Cancel
-                this._endDrag();
+                this._endDrag(true);
                 this._state = DRAG_IDLE;
                 break;
             default:
@@ -200,9 +254,10 @@ export class DragDropManager {
                 // Disarm
                 this._draggedWidget = null;
                 this._state = DRAG_IDLE;
+                break
             case DRAG_ACTIVE:
                 // Cancel
-                this._endDrag();
+                this._endDrag(true);
                 this._state = DRAG_IDLE;
                 break;
             default:
@@ -212,21 +267,6 @@ export class DragDropManager {
         widget.disconnectObject(this);
     }
 
-    _beginDrag() {
-        // console.log("DragDropManager._beginDrag()");
-        if (this._state === DRAG_ACTIVE) {
-            throw new Error("Drag already active");
-        }
-        this._timeoutId = GLib.timeout_add(
-            GLib.PRIORITY_DEFAULT,
-            DRAG_TIMEOUT_INTERVAL_MS,
-            this._onDragTimeout.bind(this),
-        )
-        const [x, y] = getMouseState();
-        this.events.emit('drag-started', this._draggedWidget, x, y);
-        this.events.emit('drag-update', this._draggedWidget, x, y);
-    }
-
     _onDragTimeout() {
         // console.log("DragDropManager._onDragTimeout()");
         if (this._state !== DRAG_ACTIVE) {
@@ -234,7 +274,7 @@ export class DragDropManager {
         }
         const [x, y, pressed] = getMouseState();
         if (!pressed) {
-            this._endDrag();
+            this._endDrag(true);
             this._state = DRAG_IDLE;
             return;
         }
@@ -242,26 +282,10 @@ export class DragDropManager {
         return GLib.SOURCE_CONTINUE;
     }
 
-    _endDrag() {
-        // console.log("DragDropManager._endDrag()");
-        if (this._state !== DRAG_ACTIVE) {
-            throw new Error("Drag not active");
-        }        
-        // Stop timeout:
-        GLib.source_remove(this._timeoutId);
-        this._timeoutId = 0;
-
-        // Send end event to group owner:
-        const [x, y] = getMouseState();
-        this.events.emit('drag-update', this._draggedWidget, x, y);
-        this.events.emit('drag-ended', this._draggedWidget, x, y);
-        this._draggedWidget = null;
-    }
-
     destroy() {
         // console.log("DragDropManager.destroy()");
         if (this._state === DRAG_ACTIVE) {
-            this._endDrag();
+            this._endDrag(true);
         }
     }
 }
