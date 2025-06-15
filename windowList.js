@@ -2,15 +2,48 @@ import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import * as AppFavorites from 'resource:///org/gnome/shell/ui/appFavorites.js';
-import { EventEmitter } from 'resource:///org/gnome/shell/misc/signals.js'
+import {EventEmitter} from 'resource:///org/gnome/shell/misc/signals.js'
 import {WindowButton} from './windowButton.js';
 import {FavoritesButton} from './favoritesButton.js';
+import {DragDropManager} from './dragDropManager.js';
 
-const DRAG_TIMEOUT_INTERVAL_MS = 50;
 
 function getWindowId(window) {
     // We use mutter's stable sequence numbers to identify windows
     return window.get_stable_sequence();
+}
+
+
+function _getClosestChildIndex(containerWidget, x) {
+    // Return the index of the visible child widget of containerWidget that is
+    // horizontally closest to the given x position, or -1 if there are no visible child
+    // widgets
+
+    const [x0, y0] = containerWidget.get_transformed_position();
+    const xrel = x - x0;
+    let best_index = -1;
+    let best_distance = Infinity;
+    
+    containerWidget.get_children().forEach((child, index) => {
+        if (child.visible) {
+            const [child_left, _] =  child.get_position();
+            const child_right = child_left + child.width;
+            let distance;
+            if (xrel < child_left) {
+                distance = child_left - xrel;
+            } else if (xrel > child_right) {
+                distance = xrel - child_right;
+            } else {
+                distance = 0;
+            }
+            if (distance < best_distance) {
+                best_distance = distance;
+                best_index = index;
+            }
+        }
+    });
+
+    return best_index;
 }
 
 export class WindowListManager {
@@ -115,7 +148,7 @@ export class WindowList {
     constructor(panel, manager) {
         this.panel = panel;
         this.manager = manager;
-        this.windowButtons = [];
+        this._windowButtons = [];
         this.favoritesButtons = [];
         
         this.widget = new St.BoxLayout({
@@ -123,7 +156,7 @@ export class WindowList {
         });
         this.widget.connect('destroy', this._onWidgetDestroyed.bind(this));
 
-        this.windowButtonsContainer = new St.BoxLayout({
+        this._windowButtonsContainer = new St.BoxLayout({
             style_class: 'window-list-container',
             x_expand: false,
         });
@@ -134,7 +167,7 @@ export class WindowList {
         });
         
         this.widget.add_child(this.favoritesContainer);
-        this.widget.add_child(this.windowButtonsContainer);
+        this.widget.add_child(this._windowButtonsContainer);
 
         panel._leftBox.insert_child_at_index(this.widget, -1);
 
@@ -158,32 +191,37 @@ export class WindowList {
             this,
         );
 
-        this._dragInProgress = false;
-        this._draggedButton = null;
-        this._dragTimeoutId = 0;
+        this._dragDropManager = new DragDropManager();
+
+        this._dragDropManager.events.connectObject(
+            'drag-started',
+            this._onDragStarted.bind(this),
+            'drag-update',
+            this._onDragUpdate.bind(this),
+            'drag-ended',
+            this._onDragEnded.bind(this),
+        )
     }
 
     _onWindowAppended(emitter, window) {
         const button = new WindowButton(window, this.panel.monitor.index);
         button.button.connect('scroll-event', this._onScrollEvent.bind(this));
-        button.button.connect('button-press-event', this._onButtonPress.bind(this));
-        button.button.connect('leave-event', this._onButtonLeave.bind(this));
-        button.button.connect('enter-event', this._onButtonEnter.bind(this));
-        this.windowButtonsContainer.add_child(button.button);
-        this.windowButtons.push(button);
+        this._windowButtonsContainer.add_child(button.button);
+        this._windowButtons.push(button);
+        this._dragDropManager.registerWidget(button.button);
     }
 
     _onWindowRemoved(emitter, index) {
-        let button = this.windowButtons[index]
+        let button = this._windowButtons[index]
         button.destroy();
-        this.windowButtons.splice(index, 1);
+        this._windowButtons.splice(index, 1);
     }
 
     _onWindowMoved(emitter, src_index, dst_index) {
-        let button = this.windowButtons[src_index]
-        this.windowButtonsContainer.set_child_at_index(button.button, dst_index);
-        this.windowButtons.splice(src_index, 1);
-        this.windowButtons.splice(dst_index, 0, button);
+        let button = this._windowButtons[src_index]
+        this._windowButtonsContainer.set_child_at_index(button.button, dst_index);
+        this._windowButtons.splice(src_index, 1);
+        this._windowButtons.splice(dst_index, 0, button);
     }
     
     _onScrollEvent(actor, event) {
@@ -197,7 +235,7 @@ export class WindowList {
     }
 
     _focusNextWindow() {
-        let visibleButtons = this.windowButtons.filter(btn => btn.button.visible);
+        let visibleButtons = this._windowButtons.filter(btn => btn.button.visible);
         if (visibleButtons.length === 0) return;
 
         let currentIndex = visibleButtons.findIndex(btn => btn._isFocused());
@@ -213,7 +251,7 @@ export class WindowList {
     }
 
     _focusPreviousWindow() {
-        let visibleButtons = this.windowButtons.filter(btn => btn.button.visible);
+        let visibleButtons = this._windowButtons.filter(btn => btn.button.visible);
         if (visibleButtons.length === 0) return;
 
         let currentIndex = visibleButtons.findIndex(btn => btn._isFocused());
@@ -228,102 +266,27 @@ export class WindowList {
         visibleButtons[currentIndex - 1].window.activate(global.get_current_time());
     }
 
-    _leftMouseButtonIsDown() {
-        let [, , modifierMask] = global.get_pointer();
-        return !!(modifierMask & Clutter.ModifierType.BUTTON1_MASK);
+    _onDragStarted(emitter, widget, x, y) {
+        const index = this._windowButtonsContainer.get_children().indexOf(widget);
+        const button = this._windowButtons[index]
+        button.setDragging(true);
+        this._onDragUpdate(emitter, widget, x, y);
     }
 
-    _onButtonPress(actor, event) {
-        if (this._dragInProgress) {
-            this._endDrag();
-        }
-    }
-
-    _onButtonEnter(actor, event) {
-        if (this._dragInProgress) {
-            this._onDragTimeout();
-        }
-        return false;
-    }
-
-    _onButtonLeave(actor, event) {
-        if (this._leftMouseButtonIsDown() && !this._dragInProgress) {
-            let button = this.windowButtons.find(btn => btn.button === actor);
-            if (button) {
-                this._dragInProgress = true;
-                this._draggedButton = button;
-                this._draggedButton.setDragging(true);
-                this._dragTimeoutId = GLib.timeout_add(
-                    GLib.PRIORITY_DEFAULT,
-                    DRAG_TIMEOUT_INTERVAL_MS,
-                    this._onDragTimeout.bind(this),
-                )
-            }
-        }
-        return false;
-    }
-
-    _onDragTimeout() {
-        if (!this._leftMouseButtonIsDown()) {
-            this._endDrag();
-            return;
-        }
-        
-        if (!this.windowButtons.includes(this._draggedButton) || !this._draggedButton.button.visible) {
-            this._endDrag();
-            return;
-        }
-
-        let [x, y] = global.get_pointer();
-
-        let [containerX, containerY] = this.windowButtonsContainer.get_transformed_position();
-        let relativeX = x - containerX;
-        
-        let targetButton = this._getButtonAtPosition(relativeX);
-        
-        if (targetButton && targetButton !== this._draggedButton) {
-            // Reorder the buttons:
-            let src_index = this.windowButtonsContainer.get_children().indexOf(this._draggedButton.button);
-            let dst_index = this.windowButtonsContainer.get_children().indexOf(targetButton.button);
+    _onDragUpdate(emitter, widget, x, y) {
+        const src_index = this._windowButtonsContainer.get_children().indexOf(widget);
+        const button = this._windowButtons[src_index]
+        const dst_index = _getClosestChildIndex(this._windowButtonsContainer, x);
+        if (dst_index !== -1 && dst_index !== src_index) {
             this.manager.moveWindow(src_index, dst_index);
         }
-        return GLib.SOURCE_CONTINUE;
     }
 
-    _getButtonAtPosition(x) {
-        if (x >= this.windowButtonsContainer.width) {
-            let visibleButtons = this.windowButtons.filter(btn => btn.button.visible);
-            return visibleButtons[visibleButtons.length - 1];
-        } else if (x <= 0) {
-            let visibleButtons = this.windowButtons.filter(btn => btn.button.visible);
-            return visibleButtons[0];
-        }
-
-        for (let button of this.windowButtons) {
-            if (!button.button.visible) continue;
-            
-            let [buttonX, buttonY] = button.button.get_position();
-            let buttonWidth = button.button.width;
-            
-            if (x >= buttonX && x <= buttonX + buttonWidth) {
-                return button;
-            }
-        }
-        throw new Error("_getButtonAtPosition(): no button found");
-    }
-
-    _endDrag() {
-        if (this._draggedButton) {
-            this._draggedButton.setDragging(false);
-        }
-
-        this._dragInProgress = false;
-        this._draggedButton = null;
-        
-        if (this._dragTimeoutId) {
-            GLib.source_remove(this._dragTimeoutId);
-            this._dragTimeoutId = 0;
-        }
+    _onDragEnded(emitter, widget, x, y) {
+        this._onDragUpdate(emitter, widget, x, y);
+        const index = this._windowButtonsContainer.get_children().indexOf(widget);
+        const button = this._windowButtons[index]
+        button.setDragging(false);
     }
 
     _createFavorites() {
@@ -353,17 +316,18 @@ export class WindowList {
     destroy() {
         AppFavorites.getAppFavorites().disconnectObject(this);
         this.manager.events.disconnectObject(this);
-        this._endDrag();
         
         this._destroyFavorites();
         
-        this.windowButtons.forEach(button => {
+        this._windowButtons.forEach(button => {
             button.destroy();
         });
-        this.windowButtons = [];
+        this._windowButtons = [];
         
         if (this.widget) {
             this.widget.destroy();
         }
+
+        this._dragDropManager.destroy();
     }
 }
