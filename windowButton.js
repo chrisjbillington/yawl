@@ -36,7 +36,6 @@ export class WindowButton {
         this.button.connect('destroy', this._onButtonDestroyed.bind(this));
         this.button.connect('clicked', this._onButtonClicked.bind(this));
         this.button.connect('button-press-event', this._onButtonPress.bind(this));
-        this.button.connect('notify::hover', this._onHover.bind(this));
 
         global.display.connectObject(
             'notify::focus-window',
@@ -92,7 +91,9 @@ export class WindowButton {
 
     _updateTitle() {
         if (this.button) {
-            this._label.text = this.window.get_title() || '';
+            const title = this.window.get_title() || '';
+            this._label.text = title;
+            this._tooltip.set(this.button, title);
         }
     }
 
@@ -138,20 +139,11 @@ export class WindowButton {
         if (!this.button) return;
         if (isDragging) {
             this.button.add_style_class_name('dragging');
-            this._tooltip.inhibit();
         } else {
             this.button.remove_style_class_name('dragging');
             this.button.fake_release();
         }
         this._updateStyle();
-    }
-
-    _onHover() {
-        if (this.button.hover && this.window) {
-            this._tooltip.show(this.button, this._label.text);
-        } else {
-            this._tooltip.hide();
-        }
     }
 
     _isFocused() {
@@ -173,7 +165,6 @@ export class WindowButton {
     }
 
     _onButtonPress(actor, event) {
-        this._tooltip.inhibit()
         let button = event.get_button();
         if (button === MOUSE_BUTTON_MIDDLE) {
             this.window.delete(global.get_current_time());
@@ -191,12 +182,10 @@ export class WindowButton {
     }
 
     _onButtonDestroyed() {
-        this._tooltip.hide(this.button);
         this.button = null;
     }
 
     destroy() {
-        this._tooltip.hide(this.button);
         if (this.button) {
             this.button.destroy();
         }

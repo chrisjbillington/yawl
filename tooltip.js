@@ -1,102 +1,174 @@
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 
-const TOOLTIP_HOVER_TIMEOUT_MS = 300;
+const TOOLTIP_HOVER_DELAY_MS = 300;
+
+const ANY_MOUSE_BUTTON_MASK = (
+    Clutter.ModifierType.BUTTON1_MASK
+    | Clutter.ModifierType.BUTTON2_MASK
+    | Clutter.ModifierType.BUTTON3_MASK
+    | Clutter.ModifierType.BUTTON4_MASK
+    | Clutter.ModifierType.BUTTON5_MASK
+)
+
+function getMouseButtonsHeld() {
+    // whether any mouse buttons are pressed
+    const [x, y, modifierMask] = global.get_pointer();
+    return !!(modifierMask & ANY_MOUSE_BUTTON_MASK);
+}
 
 export class ToolTip {
     constructor() {
-        this._widget = new St.Label({
+        this._tooltip = new St.Label({
             style_class: 'panel-window-list-tooltip'
         });
         
         // Add to UI but keep hidden initially
-        Main.uiGroup.add_child(this._widget);
-        this._widget.hide();
-        
+        Main.uiGroup.add_child(this._tooltip);
+        this._tooltip.hide();
+        this._text_by_widget = new Map();
         this._timeoutId = 0;
-        this._targetWidget = null;
+        this._currentWidget = null;
         this._lastHideTime = 0;
     }
 
-    show(widget, text) {
-        // If we're already showing for this widget with same text, do nothing
-        if (this._targetWidget === widget && this._widget.text === text && this._widget.visible) {
+    // Set the tooltip for a widget. Set to null or empty string to clear.
+    set(widget, text) {
+        // console.log("ToolTip.set()");
+        if (!text) {
+            this._unregister(widget);
             return;
         }
-        // Validate text to prevent null/undefined issues
-        if (!text || typeof text !== 'string') {
-            return;
+        if (!this._text_by_widget.has(widget)) {
+            this._register(widget);
         }
-        this._targetWidget = widget;
-        this._widget.text = text;
+        this._text_by_widget.set(widget, text);
+        if (widget === this._currentWidget && this._tooltip.visible) {
+            // update text (hide and show to recalculate positioning if needed)
+            this._hide();
+            this._show(widget);
+        }
+    }
+
+    // Inhibit a tooltip from showing until the next hover + TOOLTIP_HOVER_DELAY_MS
+    inhibit() {
+        // console.log("ToolTip.inhibit()");
+        // Hide and reset grace period:
+        this._hide();
+        this._lastHideTime = 0;
+    }
+
+    _register(widget) {
+        // console.log("ToolTip._register()");
+        // Register all the callbacks
+        widget.connectObject(
+            'notify::hover',
+            this._onHover.bind(this),
+            'captured-event',
+            this._onCapturedEvent.bind(this),
+            'destroy',
+            this._onWidgetDestroyed.bind(this),
+            this
+        );
+    }
+
+    _unregister(widget) {
+        // console.log("ToolTip._unregister()");
+        widget.disconnectObject(this);
+        this._text_by_widget.delete(widget);
+    }
+
+    _onHover(widget) {
+        // console.log("ToolTip._onHover()"); Show (delayed) tooltip on hover if there
+        // are no mouse buttons held down (as there would be during a drag and drop for
+        // example). Hide on unhover.
+        if (widget.hover && !getMouseButtonsHeld()) {
+            this._show(widget);
+        } else {
+            this._hide();
+        }
+    }
+
+    _onCapturedEvent(widget, event) {
+        // console.log("ToolTip._onCapturedEvent()");
+        // Inhibit tooltips if the user clicks or scrolls on the widget
+        const eventType = event.type();
+        if (eventType === Clutter.EventType.BUTTON_PRESS ||
+            eventType === Clutter.EventType.SCROLL) {
+            this.inhibit();
+        }
+    }
+
+    _onWidgetDestroyed(widget) {
+        // console.log("ToolTip._onWidgetDestroyed()");
+        if (widget === this._currentWidget) {
+            this._hide();
+        }
+        this._unregister(widget);
+    }
+
+    _show(widget) {
+        // console.log("ToolTip._show()");
+        this._currentWidget = widget;
+        this._tooltip.text = this._text_by_widget.get(widget);
         this._setTimeout();
     }
 
+    _hide() {
+        // console.log("ToolTip._hide()");
+        this._cancelTimeout();
+        if (this._tooltip.visible) {
+            this._tooltip.hide();
+            this._lastHideTime = Date.now();
+            this._currentWidget = null;
+        }
+    }
+
     _setTimeout() {
+        // console.log("ToolTip._setTimeout()");
         // Check if we should show immediately (within grace period of last hide)
         this._cancelTimeout();
-        const immediate = (Date.now() - this._lastHideTime) < TOOLTIP_HOVER_TIMEOUT_MS;
-        const delay = immediate ? 0 : TOOLTIP_HOVER_TIMEOUT_MS;
+        const immediate = (Date.now() - this._lastHideTime) < TOOLTIP_HOVER_DELAY_MS;
+        const delay = immediate ? 0 : TOOLTIP_HOVER_DELAY_MS;
         this._timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
             this._timeoutId = 0;
-            this._show();
+            if (this._currentWidget && this._currentWidget.get_stage()) {
+                this._tooltip.show();
+                this._position();
+            }
             return GLib.SOURCE_REMOVE;
         });
     }
 
     _cancelTimeout() {
+        // console.log("ToolTip._cancelTimeout()");
         if (this._timeoutId) {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = 0;
         }
     }
 
-    _show() {
-        if (!this._targetWidget || !this._targetWidget.get_stage()) {
-            return;
-        }
-        this._widget.show();
-        this._position();
-    }
-
-    hide() {
-        this._cancelTimeout();
-        if (this._widget.visible) {
-            this._widget.hide();
-            this._lastHideTime = Date.now();
-            this._targetWidget = null;
-        }
-    }
-
-    inhibit() {
-        // Hide and reset grace period:
-        this.hide();
-        this._lastHideTime = 0;
-    }
-
     _position() {
-        if (!this._widget || !this._targetWidget || !this._targetWidget.get_stage()) {
-            return;
-        }
-
-        let [stageX, stageY] = this._targetWidget.get_transformed_position();
-        let widgetWidth = this._targetWidget.width;
-        let widgetHeight = this._targetWidget.height;
+        // console.log("ToolTip._position()");
+        let [stageX, stageY] = this._currentWidget.get_transformed_position();
+        let widgetWidth = this._currentWidget.width;
+        let widgetHeight = this._currentWidget.height;
         
         // Ensure tooltip is properly laid out before getting its size
-        this._widget.get_preferred_width(-1);
-        this._widget.get_preferred_height(-1);
+        this._tooltip.get_preferred_width(-1);
+        this._tooltip.get_preferred_height(-1);
         
-        let tooltipWidth = this._widget.width;
-        let tooltipHeight = this._widget.height;
+        let tooltipWidth = this._tooltip.width;
+        let tooltipHeight = this._tooltip.height;
 
         // Default positioning: left-align tooltip, show above widget
         let x = stageX;
         let y = stageY - tooltipHeight - 5;
 
         // Keep tooltip within screen bounds
-        let monitor = Main.layoutManager.findMonitorForActor(this._targetWidget);
+        let monitor = Main.layoutManager.findMonitorForActor(this._currentWidget);
         if (monitor) {
             let gap = 5;
             
@@ -117,15 +189,19 @@ export class ToolTip {
             }
         }
 
-        this._widget.set_position(Math.round(x), Math.round(y));
+        this._tooltip.set_position(Math.round(x), Math.round(y));
     }
 
     destroy() {
+        // console.log("ToolTip.destroy()");
         this._cancelTimeout();
-        if (this._widget) {
-            this._widget.destroy();
-            this._widget = null;
+        this._text_by_widget.forEach((text, widget) => {
+            this._unregister(widget);
+        });
+        if (this._tooltip) {
+            this._tooltip.destroy();
+            this._tooltip = null;
         }
-        this._targetWidget = null;
+        this._currentWidget = null;
     }
 }

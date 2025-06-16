@@ -237,7 +237,6 @@ class FavoritesList {
             this._favoritesButtons.splice(src_index, 1);
             this._favoritesButtons.splice(dst_index, 0, button);
         }
-        this._tooltip.inhibit();
     }
 
     _onDragEnded(emitter, widget, x, y) {
@@ -337,7 +336,6 @@ class WindowList {
         } else if (direction === SCROLL_WHEEL_DOWN) {
             this._focusNextWindow();
         }
-        this._tooltip.inhibit()
         return true;
     }
 
@@ -398,7 +396,6 @@ class WindowList {
                 this._manager.moveWindow(src_index, dst_index);
             }
         }
-        this._tooltip.inhibit();
     }
 
     _onDragEnded(emitter, widget, x, y) {
