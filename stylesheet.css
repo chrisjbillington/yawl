@@ -5,6 +5,13 @@
  * JavaScript only manages CSS class names for state.
  */
 
+/* Favorites container */
+.panel {
+    padding-left: 0px;
+    padding-right: 0px;
+    spacing: 4px;
+}
+
 /* Window List Container */
 .window-list-container {
     spacing: 0px;

@@ -418,6 +418,7 @@ export class Panel {
     constructor(panel, windowListManager) {
         this._monitor_index = panel.monitor.index;
         this.widget = new St.BoxLayout({
+            style_class: 'panel',
             x_expand: false,
         });
         this.widget.connect('destroy', this._onWidgetDestroyed.bind(this));
