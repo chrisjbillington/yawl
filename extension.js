@@ -1,6 +1,7 @@
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js'
 import {Panel, WindowListManager} from './windowList.js';
+import {ToolTip} from './tooltip.js';
 
 // Feature checklist:
 // - [x] Draw icon
@@ -50,6 +51,7 @@ export default class PanelWindowListExtension extends Extension {
         // console.log("enable()")
         this.panels = [];
         this.windowListManager = null;
+        this.tooltip = new ToolTip();
         
         // Watch for extensions being enabled and disabled:
         Main.extensionManager.connectObject(
@@ -115,7 +117,7 @@ export default class PanelWindowListExtension extends Extension {
         const settings = this.getSettings(GSETTINGS_PATH);
         this.windowListManager = new WindowListManager(settings)
         global.dashToPanel.panels.forEach(dtppanel => {
-            const panel = new Panel(dtppanel, this.windowListManager);
+            const panel = new Panel(dtppanel, this.windowListManager, this.tooltip);
             this.panels.push(panel);
         });
         this.windowListManager.get_initial_windows();
@@ -142,6 +144,10 @@ export default class PanelWindowListExtension extends Extension {
         // console.log("disable()")
         if (this._dashToPanel) {
             this._disconnectFromDashToPanel();
+        }
+        if (this.tooltip) {
+            this.tooltip.destroy();
+            this.tooltip = null;
         }
         Main.extensionManager.disconnectObject(this);
     }

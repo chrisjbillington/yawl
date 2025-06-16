@@ -154,8 +154,9 @@ export class WindowListManager {
 
 
 class FavoritesList {
-    constructor(monitor_index) {
+    constructor(monitor_index, tooltip) {
         this._monitor_index = monitor_index;
+        this._tooltip = tooltip;
         this.widget = new St.BoxLayout({
             style_class: 'favorites-container',
             x_expand: false,
@@ -193,7 +194,7 @@ class FavoritesList {
         // console.log("FavoritesList._createFavorites()");
         let favorites = AppFavorites.getAppFavorites().getFavorites();
         favorites.forEach(app => {
-            let button = new FavoritesButton(app, this.widget);
+            let button = new FavoritesButton(app, this.widget, this._tooltip);
             this._favoritesButtons.push(button);
             this._dragDropManager.registerWidget(button.button);
         });
@@ -236,6 +237,7 @@ class FavoritesList {
             this._favoritesButtons.splice(src_index, 1);
             this._favoritesButtons.splice(dst_index, 0, button);
         }
+        this._tooltip.inhibit();
     }
 
     _onDragEnded(emitter, widget, x, y) {
@@ -263,9 +265,10 @@ class FavoritesList {
 
 
 class WindowList {
-    constructor(manager, monitor_index) {
+    constructor(manager, monitor_index, tooltip) {
         this._manager = manager;
-        this._monitor_index = monitor_index
+        this._monitor_index = monitor_index;
+        this._tooltip = tooltip;
         this._windowButtons = [];
         
         this.widget = new St.BoxLayout({
@@ -300,7 +303,7 @@ class WindowList {
     }
 
     _onWindowAppended(emitter, window) {
-        const button = new WindowButton(window, this._monitor_index);
+        const button = new WindowButton(window, this._monitor_index, this._tooltip);
         button.button.connect('scroll-event', this._onScrollEvent.bind(this));
         this.widget.add_child(button.button);
         this._windowButtons.push(button);
@@ -334,6 +337,7 @@ class WindowList {
         } else if (direction === SCROLL_WHEEL_DOWN) {
             this._focusNextWindow();
         }
+        this._tooltip.inhibit()
         return true;
     }
 
@@ -394,6 +398,7 @@ class WindowList {
                 this._manager.moveWindow(src_index, dst_index);
             }
         }
+        this._tooltip.inhibit();
     }
 
     _onDragEnded(emitter, widget, x, y) {
@@ -415,7 +420,7 @@ class WindowList {
 
 
 export class Panel {
-    constructor(panel, windowListManager) {
+    constructor(panel, windowListManager, tooltip) {
         this._monitor_index = panel.monitor.index;
         this.widget = new St.BoxLayout({
             style_class: 'panel',
@@ -423,8 +428,8 @@ export class Panel {
         });
         this.widget.connect('destroy', this._onWidgetDestroyed.bind(this));
 
-        this._favoritesList = new FavoritesList(this._monitor_index);
-        this._windowList = new WindowList(windowListManager, this._monitor_index);
+        this._favoritesList = new FavoritesList(this._monitor_index, tooltip);
+        this._windowList = new WindowList(windowListManager, this._monitor_index, tooltip);
         
         this.widget.add_child(this._favoritesList.widget);
         this.widget.add_child(this._windowList.widget);
