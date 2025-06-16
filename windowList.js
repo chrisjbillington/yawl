@@ -29,8 +29,8 @@ function _getClosestChildIndex(widget, x) {
     
     widget.get_children().forEach((child, index) => {
         if (child.visible) {
-            const [child_left, _] =  child.get_position();
-            const child_right = child_left + child.width;
+            const child_left =  child.get_x();
+            const child_right = child_left + child.width - 1;
             let distance;
             if (xrel < child_left) {
                 distance = child_left - xrel;
