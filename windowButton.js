@@ -33,10 +33,15 @@ export class WindowButton {
         this._hbox.add_child(this._label);
         this.button.set_child(this._hbox);
 
-        this.button.connect('destroy', this._onButtonDestroyed.bind(this));
-        this.button.connect('clicked', this._onButtonClicked.bind(this));
-        this.button.connect('button-press-event', this._onButtonPress.bind(this));
-
+        this.button.connectObject(
+            'destroy',
+            this._onButtonDestroyed.bind(this),
+            'clicked',
+            this._onButtonClicked.bind(this),
+            'button-press-event',
+            this._onButtonPress.bind(this),
+            this,
+        );
         global.display.connectObject(
             'notify::focus-window',
             this._updateStyle.bind(this),
@@ -187,6 +192,7 @@ export class WindowButton {
 
     destroy() {
         if (this.button) {
+            this.button.disconnectObject(this);
             this.button.destroy();
         }
         this.window.set_icon_geometry(null);
