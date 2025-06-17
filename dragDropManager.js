@@ -26,16 +26,14 @@ export class DragDropManager {
     // callers should connect to the following signals emitted by
     // DragDropManager.events:
     //
-    // - drag-started (widget, x, y): the given widget has started a drag operation, the
-    //   mouse is currently at coordinates x,y.
+    // - drag-started (widget): the given widget has started a drag operation
     //
     // - drag-update (widget, x, y): emitted every 50ms whilst a drag is in progress,
     //   with the widget being dragged, and the current mouse coordinates.
     //
-    // - drag-ended (widget, x, y): emitted when a drag operation has completed. This
-    //   event will be immediately preceded by a drag-update event with the same x,y
-    //   coordinates, so there is no need to duplicate updates related to mouse movement
-    //   if they are already performed in the handler for drag-update.
+    // - drag-ended (widget): emitted when a drag operation has completed. This event
+    //   will be immediately preceded by a final drag-update event with the x,y
+    //   coordinates of the cursor at the time the drag ended.
     //
     // Callers may end a drag operation at any time by calling endDrag(), which will end
     // the drag operation and emit a final drag-update and drag-ended. Calling endDrag()
@@ -105,8 +103,7 @@ export class DragDropManager {
             DRAG_TIMEOUT_INTERVAL_MS,
             this._onDragTimeout.bind(this),
         )
-        const [x, y] = getMouseState();
-        this.events.emit('drag-started', this._draggedWidget, x, y);
+        this.events.emit('drag-started', this._draggedWidget);
     }
 
     endDrag() {
@@ -127,7 +124,7 @@ export class DragDropManager {
         this._timeoutId = 0;
         const [x, y] = getMouseState();
         this._emitDragUpdate(widget, x, y)
-        this.events.emit('drag-ended', widget, x, y);
+        this.events.emit('drag-ended', widget);
     }
 
     _emitDragUpdate(widget, x, y) {
