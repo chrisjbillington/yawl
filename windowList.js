@@ -176,7 +176,6 @@ class FavoritesList {
         this._tooltip = tooltip;
         this.widget = new St.BoxLayout({
             style_class: 'favorites-container',
-            x_expand: false,
         });
         this._favoritesButtons = [];
 
@@ -287,7 +286,6 @@ class WindowList {
         
         this.widget = new St.BoxLayout({
             style_class: 'window-list-container',
-            x_expand: false,
         });
         
         // Connect to the window list manager which will tell us about windows being
@@ -441,7 +439,6 @@ export class Panel {
         this._monitor_index = panel.monitor.index;
         this.widget = new St.BoxLayout({
             style_class: 'panel',
-            x_expand: false,
         });
         this.widget.connect('destroy', this._onWidgetDestroyed.bind(this));
 
