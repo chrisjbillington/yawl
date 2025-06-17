@@ -85,6 +85,7 @@ export class WindowButton {
     }
     
     updateVisibility() {
+        // console.log("WindowButton.updateVisibility")
         if (this.button) {
             let workspace = global.workspace_manager.get_active_workspace();
             let visible = !this.window.skip_taskbar &&
@@ -137,7 +138,6 @@ export class WindowButton {
         if (this._isFocused()) {
             this.button.add_style_class_name('focused');
         }
-        this.button.sync_hover();
     }
     
     setDragging(isDragging) {
@@ -146,6 +146,8 @@ export class WindowButton {
             this.button.add_style_class_name('dragging');
         } else {
             this.button.remove_style_class_name('dragging');
+            // When dragging, we may not have received a release event. This ensures
+            // styling is updated to reflect the button no longer being pressed:
             this.button.fake_release();
         }
         this._updateStyle();

@@ -53,6 +53,7 @@ export class DragDropManager {
         this._draggedWidget = null;
         this._timeoutId = 0;
         this._update_running = false;
+        this._widgets =  new Set();
         this.events = new EventEmitter();
     }
     
@@ -70,15 +71,22 @@ export class DragDropManager {
             this._onButtonPress.bind(this),
             'button-release-event',
             this._onButtonRelease.bind(this),
-            'leave-event',
-            this._onLeaveEvent.bind(this),
-            'enter-event',
-            this._onEnterEvent.bind(this),
+            'notify::hover',
+            this._onHoverChanged.bind(this),
             'notify::visible',
             this._onVisibleChanged.bind(this),
             'destroy',
             this._onWidgetDestroyed.bind(this),
         );
+        this._widgets.add(widget);
+    }
+
+    unRegisterWidget(widget) {
+        if (this._widgets.has(widget)) {
+            // Clean up our connections:
+            widget.disconnectObject(this);
+            this._widgets.remove(widget);
+        }
     }
 
     startDrag(widget) {
@@ -181,8 +189,9 @@ export class DragDropManager {
         }
     }
 
-    _onLeaveEvent(widget) {
-        // console.log("DragDropManager._onLeaveEvent()");
+    _onHoverChanged(widget) {
+        // console.log("DragDropManager._onHoverChanged()");
+        const hover = widget.hover;
         switch (this._state) {
             case DRAG_IDLE:
                 // Nothing to do
@@ -190,44 +199,21 @@ export class DragDropManager {
             case DRAG_ARMED:
                 // If mouse leaves whilst left mouse button is pressed (implied by ARMED
                 // state), start a drag operation:
-                if (widget === this._draggedWidget) {
+                if (!hover && widget === this._draggedWidget) {
                     this.startDrag(widget);
-                } else {
-                    // Disarm - this shouldn't happen:
-                    this._setState(DRAG_IDLE, null);
                 }
                 break;
             case DRAG_ACTIVE:
-                // Nothing to do
+                if (hover && widget !== this._draggedWidget) {
+                    // Don't show hover styling on the widget the mouse is over, to
+                    // prevent flicker between now and when the update timeout next runs
+                    // and moves the dragged widget to this position:
+                    widget.hover = false;
+                }
                 break;
             default:
                 throw new Error(`invalid drag state ${this._state}`);
         }
-        // Explicitly returning false to acknowledge events will progagate is compulsory
-        // for leave and enter events:
-        return false;
-    }
-
-    _onEnterEvent(widget) {
-        // console.log("DragDropManager._onEnterEvent()");
-        switch (this._state) {
-            case DRAG_IDLE:
-            case DRAG_ARMED:
-                // Nothing to do
-                break;
-            case DRAG_ACTIVE:
-                // Send an immediate update event so parent can reorder widgets as
-                // needed without waiting for the timeout to fire, to avoid flickering
-                // caused by e.g. hover style taking effect first
-                const [x, y] = getMouseState();
-                this._emitDragUpdate(this._draggedWidget, x, y);
-                break;
-            default:
-                throw new Error(`invalid drag state ${this._state}`);
-        }
-        // Explicitly returning false to acknowledge events will propagate is compulsory
-        // for leave and enter events:
-        return false;
     }
 
     _onVisibleChanged(widget, visible) {
@@ -272,8 +258,7 @@ export class DragDropManager {
             default:
                 throw new Error(`invalid drag state ${this._state}`);
         }
-        // Clean up our connections:
-        widget.disconnectObject(this);
+        this.unRegisterWidget(widget);
     }
 
     _onDragTimeout() {
@@ -292,6 +277,9 @@ export class DragDropManager {
 
     destroy() {
         // console.log("DragDropManager.destroy()");
-        this.endDrag()
+        this.endDrag();
+        for (const widget of this._widgets) {
+            this.unRegisterWidget(widget);
+        }
     }
 }

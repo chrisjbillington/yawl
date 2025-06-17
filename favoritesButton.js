@@ -31,9 +31,10 @@ export class FavoritesButton {
             this.button.add_style_class_name('dragging');
         } else {
             this.button.remove_style_class_name('dragging');
+            // When dragging, we may not have received a release event. This ensures
+            // styling is updated to reflect the button no longer being pressed:
             this.button.fake_release();
         }
-        this.button.sync_hover();
     }
 
     _onButtonDestroyed() {
