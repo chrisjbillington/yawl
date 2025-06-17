@@ -83,7 +83,7 @@ export class DragDropManager {
         if (this._widgets.has(widget)) {
             // Clean up our connections:
             widget.disconnectObject(this);
-            this._widgets.remove(widget);
+            this._widgets.delete(widget);
         }
     }
 
