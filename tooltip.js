@@ -22,7 +22,7 @@ function getMouseButtonsHeld() {
 export class ToolTip {
     constructor() {
         this._tooltip = new St.Label({
-            style_class: 'panel-window-list-tooltip'
+            style_class: 'tooltip'
         });
         
         // Add to UI but keep hidden initially

@@ -32,13 +32,10 @@ import {ToolTip} from './tooltip.js';
 // - [ ] Right click should get window menu (maybe not possible)
 // - [ ] Favourites have a context menu for e.g. unpinning
 // - [ ] Window buttons context menu should have entry to allow pinning to favourites
-// - [ ] Optionally put favourites in top bar in standalone mode?
-// - [ ] at least with custom panel, make it look more like my tint2 config with borders
-//   around buttons, slightly fatter panel so that favourites can be larger than 16px
-//   (?) window button icons
+// - [ ] Optionally put favourites in top bar?
 
 
-const GSETTINGS_PATH = 'org.gnome.shell.extensions.panel-window-list';
+const GSETTINGS_PATH = 'org.gnome.shell.extensions.yawl';
 
 export default class PanelWindowListExtension extends Extension {
     constructor(metadata) {

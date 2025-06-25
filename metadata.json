@@ -1,6 +1,6 @@
 {
-    "name": "Panel window list",
-    "description": "A traditional ungrouped window list in the panel",
-    "uuid": "panel-window-list@chrisjbillington.github.com",
+    "name": "yawl - yet another window list",
+    "description": "A traditional ungrouped window list",
+    "uuid": "yawl@chrisjbillington.github.com",
     "shell-version": [ "48"]
 }
