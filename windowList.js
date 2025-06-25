@@ -12,6 +12,9 @@ import {DragDropManager} from './dragDropManager.js';
 const SCROLL_WHEEL_UP = 0;
 const SCROLL_WHEEL_DOWN = 1;
 
+// Get preferred width from the first button (they all have the same CSS styling)
+const WINDOW_BUTTON_MAX_WIDTH = 160
+        
 function getWindowId(window) {
     // We use mutter's stable sequence numbers to identify windows
     return window.get_stable_sequence();
@@ -287,6 +290,7 @@ class WindowList {
         
         this.widget = new St.BoxLayout({
             style_class: 'window-list-container',
+            x_expand: true,
         });
         
         // Connect to allocation changes to redistribute button widths
@@ -447,18 +451,15 @@ class WindowList {
         const allocation = this.widget.get_allocation_box();
         const availableWidth = allocation.x2 - allocation.x1;
         
-        // Get preferred width from the first button (they all have the same CSS styling)
-        const [minWidth, preferredWidth] = visibleButtons[0].button.get_preferred_width(-1);
-        
         // Calculate base width and remainder
         const baseWidth = Math.floor(availableWidth / visibleButtons.length);
         const remainder = availableWidth % visibleButtons.length;
         
         // Distribute widths: first 'remainder' buttons get baseWidth + 1, rest get baseWidth
-        // But never exceed the preferred width from CSS
+        // But never exceed WINDOW_BUTTON_MAX_WIDTH
         visibleButtons.forEach((button, index) => {
             const calculatedWidth = index < remainder ? baseWidth + 1 : baseWidth;
-            const width = Math.min(calculatedWidth, preferredWidth);
+            const width = Math.min(calculatedWidth, WINDOW_BUTTON_MAX_WIDTH);
             button.button.set_width(width);
         });
     }
