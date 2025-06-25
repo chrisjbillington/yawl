@@ -289,6 +289,9 @@ class WindowList {
             style_class: 'window-list-container',
         });
         
+        // Connect to allocation changes to redistribute button widths
+        this.widget.connect('notify::allocation', this._redistributeButtonWidths.bind(this));
+        
         // Connect to the window list manager which will tell us about windows being
         // added, removed, and reordered in the window list order:
         this._manager.events.connectObject(
@@ -321,12 +324,24 @@ class WindowList {
         this.widget.add_child(button.button);
         this._windowButtons.push(button);
         this._dragDropManager.registerWidget(button.button);
+        
+        // Redistribute button widths after adding
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._redistributeButtonWidths();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     _onWindowRemoved(emitter, index) {
         let button = this._windowButtons[index];
         button.destroy();
         this._windowButtons.splice(index, 1);
+        
+        // Redistribute button widths after removing
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._redistributeButtonWidths();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     _onWindowMoved(emitter, src_index, dst_index) {
@@ -422,6 +437,30 @@ class WindowList {
         const index = this.widget.get_children().indexOf(widget);
         const button = this._windowButtons[index];
         button.setDragging(false);
+    }
+
+    _redistributeButtonWidths() {
+        const visibleButtons = this._windowButtons.filter(btn => btn.button.visible);
+        if (visibleButtons.length === 0) return;
+
+        // Get the available width for buttons
+        const allocation = this.widget.get_allocation_box();
+        const availableWidth = allocation.x2 - allocation.x1;
+        
+        // Get preferred width from the first button (they all have the same CSS styling)
+        const [minWidth, preferredWidth] = visibleButtons[0].button.get_preferred_width(-1);
+        
+        // Calculate base width and remainder
+        const baseWidth = Math.floor(availableWidth / visibleButtons.length);
+        const remainder = availableWidth % visibleButtons.length;
+        
+        // Distribute widths: first 'remainder' buttons get baseWidth + 1, rest get baseWidth
+        // But never exceed the preferred width from CSS
+        visibleButtons.forEach((button, index) => {
+            const calculatedWidth = index < remainder ? baseWidth + 1 : baseWidth;
+            const width = Math.min(calculatedWidth, preferredWidth);
+            button.button.set_width(width);
+        });
     }
 
     destroy() {
