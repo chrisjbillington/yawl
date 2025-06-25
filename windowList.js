@@ -476,7 +476,7 @@ class WindowList {
         });
         this._windowButtons = [];
         this.widget.disconnectObject(this);
-        this._dragDropManager.disconnectObject(this);
+        this._dragDropManager.events.disconnectObject(this);
         this._manager.events.disconnectObject(this);
         this._dragDropManager.destroy();
     }
