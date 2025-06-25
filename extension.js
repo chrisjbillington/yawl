@@ -25,15 +25,14 @@ import {ToolTip} from './tooltip.js';
 // - [x] Favourites drag-drop reorderable
 // - [x] Favourites have tooltips
 // - [x] Tooltip is window title
+// - [x] Window list should not exceed available space in panel - buttons should shrink
+// - [x] Standalone mode - create own panels on primary or all monitors
 // - [ ] Super + 1, 2, 3 etc should launch favourites
 // - [ ] Super tab/Super shift-tab should tab through windows in taskbar order
 // - [ ] Right click should get window menu (maybe not possible)
-// - [ ] Window list should not exceed available space in panel - buttons should shrink
 // - [ ] Favourites have a context menu for e.g. unpinning
 // - [ ] Window buttons context menu should have entry to allow pinning to favourites
-// - [ ] Gnome panel mode - integrate in GNOME panel instead of dash to panel
-// - [ ] Standalone mode - create own panels on primary or all monitors
-// - [ ] Optionally put favourites in top bar when in standalone mode
+// - [ ] Optionally put favourites in top bar in standalone mode?
 // - [ ] at least with custom panel, make it look more like my tint2 config with borders
 //   around buttons, slightly fatter panel so that favourites can be larger than 16px
 //   (?) window button icons
