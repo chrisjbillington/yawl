@@ -2,6 +2,7 @@ import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import Mtk from 'gi://Mtk';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as AppFavorites from 'resource:///org/gnome/shell/ui/appFavorites.js';
 import {EventEmitter} from 'resource:///org/gnome/shell/misc/signals.js'
 import {WindowButton} from './windowButton.js';
@@ -435,20 +436,45 @@ class WindowList {
 
 
 export class Panel {
-    constructor(panel, windowListManager, tooltip) {
-        this._monitor_index = panel.monitor.index;
+    constructor(monitor, windowListManager, tooltip) {
+        this._monitor_index = monitor.index;
+        this._monitor = monitor;
+        
+        // Create the main panel widget
         this.widget = new St.BoxLayout({
             style_class: 'panel',
         });
         this.widget.connect('destroy', this._onWidgetDestroyed.bind(this));
 
+        // Create window list components
         this._favoritesList = new FavoritesList(this._monitor_index, tooltip);
         this._windowList = new WindowList(windowListManager, this._monitor_index, tooltip);
         
         this.widget.add_child(this._favoritesList.widget);
         this.widget.add_child(this._windowList.widget);
 
-        panel._leftBox.insert_child_at_index(this.widget, -1);
+        // Add to the UI group (chrome layer) first
+        Main.layoutManager.addChrome(this.widget, {
+            affectsStruts: true,
+            trackFullscreen: true,
+        });
+        
+        // Position the panel at the bottom of the monitor after it's added
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._positionPanel();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _positionPanel() {
+        // Set panel width to monitor width
+        this.widget.set_width(this._monitor.width);
+        
+        // Get the panel height from CSS (defaults to 48px if not set)
+        const panelHeight = this.widget.get_preferred_height(-1)[1] || 48;
+        
+        // Position at bottom of monitor
+        this.widget.set_position(this._monitor.x, this._monitor.y + this._monitor.height - panelHeight);
     }
 
     _onWidgetDestroyed() {
@@ -459,6 +485,7 @@ export class Panel {
         this._favoritesList.destroy();
         this._windowList.destroy();
         if (this.widget) {
+            Main.layoutManager.removeChrome(this.widget);
             this.widget.destroy();
         }
     }

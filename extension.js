@@ -53,73 +53,28 @@ export default class PanelWindowListExtension extends Extension {
         this.windowListManager = null;
         this.tooltip = new ToolTip();
         
-        // Watch for extensions being enabled and disabled:
-        Main.extensionManager.connectObject(
-            'extension-state-changed',
-            this._onExtensionStateChanged.bind(this),
+        // Watch for monitor changes:
+        Main.layoutManager.connectObject(
+            'monitors-changed',
+            this._recreatePanels.bind(this),
             this,
         );
         
-        this._dashToPanel = null;
-
-        // Check if dash to panel is active already:
-        if (global.dashToPanel) {
-            this._connectToDashToPanel();
-        }
+        this._createPanels();
     }
 
-    _onExtensionStateChanged(manager, extension) {
-        // console.log("_onExtensionStateChanged()")
-        // Dash to panel can be reset by GNOME shell calling its disable() and enable()
-        // methods, without notifying us at all. GNOME shell does this whenever an
-        // extension that was enabled before Dash to Panel was, is disabled. So we
-        // aggressively check the existence and identity of the global dash to panel
-        // object and update our connection to it accordingly
-        if (global.dashToPanel && !this._dashToPanel) {
-            // DashToPanel exists but we're not connected
-            this._connectToDashToPanel();
-        } else if (!global.dashToPanel && this._dashToPanel) {
-            // DashToPanel gone but we're still connected
-            this._disconnectFromDashToPanel();
-        } else if (global.dashToPanel && this._dashToPanel && global.dashToPanel !== this._dashToPanel) {
-            // DashToPanel exists but it's a different object
-            this._reconnectToDashToPanel();
-        }
-    }
-
-    _connectToDashToPanel() {
-        // console.log("_connectToDashToPanel()")
-        this._dashToPanel = global.dashToPanel;
-        this._dashToPanel.connectObject(
-            'panels-created',
-            this._recreatePanels.bind(this),
-            this
-        );
-        this._createPanels()
-    }
-
-    _disconnectFromDashToPanel() {
-        // console.log("_disconnectFromDashToPanel()")
-        this._destroyPanels();
-        this._dashToPanel.disconnectObject(this);
-        this._dashToPanel = null;
-    }
-
-    _reconnectToDashToPanel() {
-        // console.log("_reconnectToDashToPanel()")
-        this._disconnectFromDashToPanel();
-        this._connectToDashToPanel();
-    }
 
     _createPanels() {
         // console.log("_createPanels()")
-        // Create new window lists for each panel:
         const settings = this.getSettings(GSETTINGS_PATH);
-        this.windowListManager = new WindowListManager(settings)
-        global.dashToPanel.panels.forEach(dtppanel => {
-            const panel = new Panel(dtppanel, this.windowListManager, this.tooltip);
+        this.windowListManager = new WindowListManager(settings);
+        
+        // Create a panel for each monitor
+        Main.layoutManager.monitors.forEach(monitor => {
+            const panel = new Panel(monitor, this.windowListManager, this.tooltip);
             this.panels.push(panel);
         });
+        
         this.windowListManager.get_initial_windows();
     }
 
@@ -142,13 +97,11 @@ export default class PanelWindowListExtension extends Extension {
 
     disable() {
         // console.log("disable()")
-        if (this._dashToPanel) {
-            this._disconnectFromDashToPanel();
-        }
+        this._destroyPanels();
         if (this.tooltip) {
             this.tooltip.destroy();
             this.tooltip = null;
         }
-        Main.extensionManager.disconnectObject(this);
+        Main.layoutManager.disconnectObject(this);
     }
 }
