@@ -291,10 +291,17 @@ class WindowList {
         this.widget = new St.BoxLayout({
             style_class: 'window-list-container',
             x_expand: true,
+            reactive: true,
         });
         
         // Connect to allocation changes to redistribute button widths
-        this.widget.connect('notify::allocation', this._redistributeButtonWidths.bind(this));
+        this.widget.connectObject(
+            'notify::allocation',
+            this._redistributeButtonWidths.bind(this),
+            'scroll-event',
+            this._onScrollEvent.bind(this),
+            this
+        );
         
         // Connect to the window list manager which will tell us about windows being
         // added, removed, and reordered in the window list order:
@@ -324,7 +331,6 @@ class WindowList {
 
     _onWindowAppended(emitter, window) {
         const button = new WindowButton(window, this._monitor_index, this._tooltip);
-        button.button.connect('scroll-event', this._onScrollEvent.bind(this));
         this.widget.add_child(button.button);
         this._windowButtons.push(button);
         this._dragDropManager.registerWidget(button.button);
@@ -465,11 +471,13 @@ class WindowList {
     }
 
     destroy() {
-        this._manager.events.disconnectObject(this);
         this._windowButtons.forEach(button => {
             button.destroy();
         });
         this._windowButtons = [];
+        this.widget.disconnectObject(this);
+        this._dragDropManager.disconnectObject(this);
+        this._manager.events.disconnectObject(this);
         this._dragDropManager.destroy();
     }
 }
