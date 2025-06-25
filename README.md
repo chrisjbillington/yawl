@@ -6,20 +6,31 @@ A traditional window list for GNOME.
 
 ## Install
 
-Currently compatible with GNOME 48.
-
 I haven't applied to have this extension on `extensions.gnome.org` yet. In the meantime
 you can install from git like so:
 ```bash
 mkdir -p ~/.local/share/gnome-shell/extensions
 cd ~/.local/share/gnome-shell/extensions
-git clone https://github.com/chrisjbillington/yawl
-glib-compile-schemas ~/.local/share/gnome-shell/extensions/yawl\@chrisjbillington.github.com/schemas/
+git clone https://github.com/chrisjbillington/yawl yawl\@chrisjbillington.github.com/
+glib-compile-schemas yawl\@chrisjbillington.github.com/schemas/
 ```
 Then enable from the GNOME extensions app. You may need to log out and in again before
 GNOME extensions recognises it.
 
+If you don't have the gnome extensions app, you'll need to install it, e.g. for
+Debian-based distros:
+
+```bash
+sudo apt install gnome-shell-extensions
+```
+
 Please report any bugs.
+
+## GNOME version compatibility
+
+This extension was developed and tested on GNOME 48 and also seems to work on GNOME 46
+in basic testing. I've therefore optimistically marked it as supporting GNOME 46, 47,
+and 48.
 
 ## Features
 
@@ -48,9 +59,12 @@ Please report any bugs.
 * Allow hiding favourites launcher or moving to GNOME top panel
 
 ## Unplanned features
+
 This extension is intended to be used with the GNOME top panel, not as a replacement for
 it. Therefore there are no plans to include a clock or other status indicators as are
 present in the GNOME top panel.
+
+Generally I intend to keep animations to a minimum.
 
 ## Project status
 

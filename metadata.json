@@ -2,5 +2,5 @@
     "name": "yawl - yet another window list",
     "description": "A traditional ungrouped window list",
     "uuid": "yawl@chrisjbillington.github.com",
-    "shell-version": [ "48"]
+    "shell-version": ["46", "47", "48"]
 }
