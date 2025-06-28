@@ -29,8 +29,8 @@ Please report any bugs.
 ## GNOME version compatibility
 
 This extension was developed and tested on GNOME 48 and also seems to work on GNOME 46
-in basic testing. I've therefore optimistically marked it as supporting GNOME 46, 47,
-and 48.
+in basic testing. I've also tested it with GNOME 49 alpha. I've therefore optimistically
+marked it as supporting GNOME 46–49.
 
 ## Features
 
