@@ -1,6 +1,7 @@
 {
+    "uuid": "yawl@chrisjbillington.github.com",
     "name": "yawl - yet another window list",
     "description": "A traditional ungrouped window list",
-    "uuid": "yawl@chrisjbillington.github.com",
-    "shell-version": ["46", "47", "48", "49"]
+    "shell-version": ["46", "47", "48", "49"],
+    "url": "https://github.com/chrisjbillington/yawl"
 }
