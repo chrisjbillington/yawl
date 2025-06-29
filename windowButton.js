@@ -1,3 +1,4 @@
+import GObject from 'gi://GObject';
 import St from 'gi://St';
 import Shell from 'gi://Shell';
 import Mtk from 'gi://Mtk';
@@ -65,9 +66,9 @@ export class WindowButton {
             'notify::title',
             this._updateTitle.bind(this),
             'notify::wm-class',
-            this._updateIcon.bind(this),
+            this._updateIcon.bind(this), GObject.ConnectFlags.AFTER,
             'notify::gtk-application-id',
-            this._updateIcon.bind(this),
+            this._updateIcon.bind(this), GObject.ConnectFlags.AFTER,
             'notify::minimized',
             this._updateMinimized.bind(this),
             'notify::demands-attention',
@@ -85,7 +86,7 @@ export class WindowButton {
     }
     
     updateVisibility() {
-        // console.log("WindowButton.updateVisibility")
+        // console.log("WindowButton.updateVisibility()");
         if (this.button) {
             let workspace = global.workspace_manager.get_active_workspace();
             let visible = !this.window.skip_taskbar &&
@@ -96,6 +97,7 @@ export class WindowButton {
     }
 
     _updateTitle() {
+        // console.log("WindowButton._updateTitle()");
         if (this.button) {
             const title = this.window.get_title() || '';
             this._label.text = title;
@@ -104,6 +106,7 @@ export class WindowButton {
     }
 
     _updateIcon() {
+        // console.log("WindowButton._updateIcon()");
         if (this.button) {
             let app = Shell.WindowTracker.get_default().get_window_app(this.window);
             if (app) {
