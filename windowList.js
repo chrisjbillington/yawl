@@ -419,6 +419,11 @@ class WindowList {
             // Cancel the drag operation and transfer it to another monitor:
             this._dragDropManager.endDrag();
             this._manager.transferDragToMonitor(src_index, monitor_index, x, y)
+            // Redistribute button widths:
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                this._redistributeButtonWidths();
+                return GLib.SOURCE_REMOVE;
+            });
         } else {
             // Move the dragged window button to the location closest to the cursor:
             const dst_index = _getMoveIndexForCursorX(this.widget, widget, x);
@@ -439,6 +444,11 @@ class WindowList {
             }
             button.window.move_to_monitor(monitor_index);
             this._dragDropManager.startDrag(button.button)
+            // Redistribute button widths:
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                this._redistributeButtonWidths();
+                return GLib.SOURCE_REMOVE;
+            });
         }
     }
 
