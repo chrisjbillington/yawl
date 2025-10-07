@@ -460,6 +460,7 @@ class WindowList {
     }
 
     _redistributeButtonWidths() {
+        // console.log(`WindowList._redistributeButtonWidths() monitor ${this._monitor_index}`);
         const visibleButtons = this._windowButtons.filter(btn => btn.button.visible);
         if (visibleButtons.length === 0) return;
 

@@ -214,6 +214,11 @@ export class DragDropManager {
         if (widget !== this._draggedWidget) {
             return;
         }
+        if (visible) {
+            // Only cancel/disarm if widget being hidden, not if becoming visible, which
+            // can happen when it is being moved to a different monitor
+            return;
+        }
         switch (this._state) {
             case DRAG_IDLE:
                 // Nothing to do

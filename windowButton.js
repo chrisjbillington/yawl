@@ -145,6 +145,7 @@ export class WindowButton {
     }
     
     setDragging(isDragging) {
+        // console.log("WindowButton.setDragging()");
         if (!this.button) return;
         if (isDragging) {
             this.button.add_style_class_name('dragging');
@@ -177,6 +178,7 @@ export class WindowButton {
     }
 
     _onButtonPress(actor, event) {
+        // console.log("WindowButton._onButtonPress()");
         let button = event.get_button();
         if (button === MOUSE_BUTTON_MIDDLE) {
             this.window.delete(global.get_current_time());
