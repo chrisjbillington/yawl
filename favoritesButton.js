@@ -8,17 +8,21 @@ export class FavoritesButton {
         this.app = app;
         this.container = container;
         this._tooltip = tooltip;
+        this._is_dragging = false;
         
         this.button = new St.Button({
             style_class: 'favorites-button',
         });
-        this.button.connect('destroy', this._onButtonDestroyed.bind(this));
-        this.button.child = app.create_icon_texture(ICON_SIZE);
         
-        this.button.connect('clicked', () => {
-            app.open_new_window(-1);
-        });
+        this.button.connectObject(
+            'clicked',
+            this._onButtonClicked.bind(this),
+            'destroy',
+            this._onButtonDestroyed.bind(this),
+            this,
+        );
 
+        this.button.child = app.create_icon_texture(ICON_SIZE);
         this._tooltip.set(this.button, this.app.get_name());
 
         container.add_child(this.button);
@@ -35,6 +39,16 @@ export class FavoritesButton {
             // styling is updated to reflect the button no longer being pressed:
             this.button.fake_release();
         }
+        this._is_dragging = isDragging;
+    }
+
+    _onButtonClicked() {
+        // console.log("FavoritesButton._onButtonClicked()");
+        if (this._is_dragging) {
+            // Ignore mouse release during drag (this instead ends the drag)
+            return;
+        }
+        this.app.open_new_window(-1);
     }
 
     _onButtonDestroyed() {

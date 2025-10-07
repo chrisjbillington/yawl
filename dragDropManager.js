@@ -67,8 +67,8 @@ export class DragDropManager {
         widget.connectObject(
             'button-press-event',
             this._onButtonPress.bind(this),
-            'button-release-event',
-            this._onButtonRelease.bind(this),
+            'clicked',
+            this._onButtonClicked.bind(this),
             'notify::hover',
             this._onHoverChanged.bind(this),
             'notify::visible',
@@ -163,12 +163,8 @@ export class DragDropManager {
         }
     }
 
-    _onButtonRelease(widget, event) {
-        // console.log("DragDropManager._onButtonRelease()");
-        let button = event.get_button();
-        if (button !== MOUSE_BUTTON_LEFT) {
-            return;
-        }
+    _onButtonClicked(widget, event) {
+        // console.log("DragDropManager._onButtonClicked()");
         switch (this._state) {
             case DRAG_IDLE:
                 // nothing to do

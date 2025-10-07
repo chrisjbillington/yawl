@@ -15,7 +15,8 @@ export class WindowButton {
         this.window = window;
         this.monitor_index = monitor_index;
         this._tooltip = tooltip;
-        
+        this._is_dragging = false;
+
         this.button = new St.Button({
             style_class: 'window-button',
         });
@@ -153,6 +154,7 @@ export class WindowButton {
             // styling is updated to reflect the button no longer being pressed:
             this.button.fake_release();
         }
+        this._is_dragging = isDragging;
         this._updateStyle();
     }
 
@@ -184,6 +186,11 @@ export class WindowButton {
     }
 
     _onButtonClicked() {
+        // console.log("WindowButton._onButtonClicked()");
+        if (this._is_dragging) {
+            // Ignore mouse release during drag (this instead ends the drag)
+            return;
+        }
         if (this._isFocused()) {
             this.window.minimize();
         } else {
